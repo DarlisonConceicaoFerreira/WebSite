@@ -1,10 +1,500 @@
 [
   {
-    "objectID": "index.html",
-    "href": "index.html",
+    "objectID": "SITE/index.html",
+    "href": "SITE/index.html",
     "title": "WebSite",
     "section": "",
     "text": "This is a Quarto website.\nTo learn more about Quarto websites visit https://quarto.org/docs/websites.\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "SITE/aula 4.html",
+    "href": "SITE/aula 4.html",
+    "title": "aula4",
+    "section": "",
+    "text": "Nesta aula, vamos organizar uma sequência de análises estatísticas voltadas à comparação de médias em situações comuns em experimentos biológicos e agronômicos. O foco será em três contextos:\n\ncomparação entre dois grupos independentes;\ncomparação entre duas condições medidas nos mesmos indivíduos;\ncomparação entre três ou mais grupos.\n\nAo longo da aula, usaremos exemplos reais do arquivo dados_diversos.xlsx, discutindo a lógica estatística, as hipóteses, as fórmulas e a implementação em R.\n\n\n\n\nlibrary(tidyverse)\nlibrary(readxl)\nlibrary(epifitter)\nlibrary(emmeans)\nlibrary(multcomp)"
+  },
+  {
+    "objectID": "SITE/aula 4.html#objetivos-da-aula",
+    "href": "SITE/aula 4.html#objetivos-da-aula",
+    "title": "aula4",
+    "section": "",
+    "text": "Nesta aula, vamos organizar uma sequência de análises estatísticas voltadas à comparação de médias em situações comuns em experimentos biológicos e agronômicos. O foco será em três contextos:\n\ncomparação entre dois grupos independentes;\ncomparação entre duas condições medidas nos mesmos indivíduos;\ncomparação entre três ou mais grupos.\n\nAo longo da aula, usaremos exemplos reais do arquivo dados_diversos.xlsx, discutindo a lógica estatística, as hipóteses, as fórmulas e a implementação em R."
+  },
+  {
+    "objectID": "SITE/aula 4.html#pacotes-utilizados",
+    "href": "SITE/aula 4.html#pacotes-utilizados",
+    "title": "aula4",
+    "section": "",
+    "text": "library(tidyverse)\nlibrary(readxl)\nlibrary(epifitter)\nlibrary(emmeans)\nlibrary(multcomp)"
+  },
+  {
+    "objectID": "SITE/aula 4.html#leitura-da-planilha-curve",
+    "href": "SITE/aula 4.html#leitura-da-planilha-curve",
+    "title": "aula4",
+    "section": "Leitura da planilha curve",
+    "text": "Leitura da planilha curve\nO primeiro conjunto de dados contém avaliações de severidade ao longo do tempo, em dois tratamentos de irrigação. Antes de comparar tratamentos, é útil visualizar a progressão temporal da doença.\n\ndados &lt;- read_excel(\"dados_diversos.xlsx\", sheet = \"curve\")\n\nglimpse(dados)\n\nRows: 60\nColumns: 4\n$ Irrigation &lt;chr&gt; \"Furrow\", \"Furrow\", \"Furrow\", \"Furrow\", \"Furrow\", \"Furrow\",…\n$ rep        &lt;dbl&gt; 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,…\n$ day        &lt;dbl&gt; 0, 0, 0, 7, 7, 7, 14, 14, 14, 21, 21, 21, 28, 28, 28, 35, 3…\n$ severity   &lt;dbl&gt; 0.010, 0.010, 0.010, 0.036, 0.036, 0.040, 0.097, 0.097, 0.1…\n\nhead(dados)\n\n# A tibble: 6 × 4\n  Irrigation   rep   day severity\n  &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;\n1 Furrow         1     0    0.01 \n2 Furrow         2     0    0.01 \n3 Furrow         3     0    0.01 \n4 Furrow         1     7    0.036\n5 Furrow         2     7    0.036\n6 Furrow         3     7    0.04"
+  },
+  {
+    "objectID": "SITE/aula 4.html#resumo-gráfico-da-severidade-ao-longo-do-tempo",
+    "href": "SITE/aula 4.html#resumo-gráfico-da-severidade-ao-longo-do-tempo",
+    "title": "aula4",
+    "section": "Resumo gráfico da severidade ao longo do tempo",
+    "text": "Resumo gráfico da severidade ao longo do tempo\nA seguir, calculamos a média e o desvio-padrão da severidade, em porcentagem, para cada combinação de tratamento e tempo de avaliação.\n\ndados |&gt;\n  group_by(Irrigation, day) |&gt;\n  summarise(\n    mean_sev = mean(severity * 100),\n    sd_sev = sd(severity * 100),\n    .groups = \"drop\"\n  ) |&gt;\n  ggplot(aes(x = day, y = mean_sev, color = Irrigation, group = Irrigation)) +\n  geom_point(size = 2) +\n  geom_line() +\n  geom_errorbar(aes(ymin = mean_sev - sd_sev,\n                    ymax = mean_sev + sd_sev),\n                width = 0.1) +\n  ylim(0, 100) +\n  labs(\n    x = \"Dias após a avaliação inicial\",\n    y = \"Severidade média (%)\",\n    color = \"Irrigação\"\n  ) +\n  theme_minimal()"
+  },
+  {
+    "objectID": "SITE/aula 4.html#área-abaixo-da-curva-de-progresso-da-doença",
+    "href": "SITE/aula 4.html#área-abaixo-da-curva-de-progresso-da-doença",
+    "title": "aula4",
+    "section": "Área abaixo da curva de progresso da doença",
+    "text": "Área abaixo da curva de progresso da doença\nEm estudos epidemiológicos, muitas vezes desejamos resumir toda a curva de progresso em uma única medida. Uma das medidas mais usadas é a AUDPC (Area Under the Disease Progress Curve), ou área abaixo da curva de progresso da doença.\nA fórmula geral da AUDPC, pelo método dos trapézios, é:\n\\[\nAUDPC = \\sum_{i=1}^{n-1} \\left( \\frac{y_i + y_{i+1}}{2} \\right)(t_{i+1} - t_i)\n\\]\nem que:\n\n\\(y_i\\) e \\(y_{i+1}\\) são as severidades observadas em duas avaliações consecutivas;\n\\(t_i\\) e \\(t_{i+1}\\) são os tempos correspondentes;\n\\(n\\) é o número de avaliações.\n\nEssa estatística resume a intensidade da doença ao longo do tempo. Quanto maior a AUDPC, maior a quantidade acumulada de doença no período avaliado.\n\ndados2 &lt;- dados |&gt;\n  group_by(Irrigation, rep) |&gt;\n  summarise(\n    audpc = AUDPC(day, severity),\n    .groups = \"drop\"\n  ) |&gt;\n  mutate(Irrigation = as.factor(Irrigation))\n\ndados2\n\n# A tibble: 6 × 3\n  Irrigation   rep audpc\n  &lt;fct&gt;      &lt;dbl&gt; &lt;dbl&gt;\n1 Drip           1  13.0\n2 Drip           2  13.9\n3 Drip           3  13.3\n4 Furrow         1  13.5\n5 Furrow         2  14.0\n6 Furrow         3  13.9"
+  },
+  {
+    "objectID": "SITE/aula 4.html#estatísticas-descritivas-da-audpc",
+    "href": "SITE/aula 4.html#estatísticas-descritivas-da-audpc",
+    "title": "aula4",
+    "section": "Estatísticas descritivas da AUDPC",
+    "text": "Estatísticas descritivas da AUDPC\nAntes de qualquer teste formal, é recomendável resumir os dados por tratamento.\n\nresumo_audpc &lt;- dados2 |&gt;\n  group_by(Irrigation) |&gt;\n  summarise(\n    mean_audpc = mean(audpc),\n    sd_audpc = sd(audpc),\n    n = n(),\n    se_audpc = sd_audpc / sqrt(n),\n    ic_95 = qt(0.975, df = n - 1) * se_audpc,\n    .groups = \"drop\"\n  )\n\nresumo_audpc\n\n# A tibble: 2 × 6\n  Irrigation mean_audpc sd_audpc     n se_audpc ic_95\n  &lt;fct&gt;           &lt;dbl&gt;    &lt;dbl&gt; &lt;int&gt;    &lt;dbl&gt; &lt;dbl&gt;\n1 Drip             13.4    0.453     3    0.261 1.13 \n2 Furrow           13.8    0.245     3    0.142 0.609\n\n\n\nGráfico com média e desvio-padrão\n\nresumo_audpc |&gt;\n  ggplot(aes(x = Irrigation, y = mean_audpc)) +\n  geom_col(width = 0.5, fill = \"gray80\") +\n  geom_point(size = 2) +\n  geom_errorbar(aes(ymin = mean_audpc - sd_audpc,\n                    ymax = mean_audpc + sd_audpc),\n                width = 0.1) +\n  labs(x = \"Irrigação\", y = \"AUDPC média (± DP)\") +\n  theme_minimal()\n\n\n\n\n\n\n\n\n\n\nGráfico com média e erro-padrão da média\nO erro-padrão da média é dado por:\n\\[\nEP(\\bar{x}) = \\frac{s}{\\sqrt{n}}\n\\]\nem que:\n\n\\(s\\) é o desvio-padrão amostral;\n\\(n\\) é o tamanho da amostra.\n\n\nresumo_audpc |&gt;\n  ggplot(aes(x = Irrigation, y = mean_audpc)) +\n  geom_col(width = 0.5, fill = \"gray80\") +\n  geom_point(size = 2) +\n  geom_errorbar(aes(ymin = mean_audpc - se_audpc,\n                    ymax = mean_audpc + se_audpc),\n                width = 0.1) +\n  labs(x = \"Irrigação\", y = \"AUDPC média (± EP)\") +\n  theme_minimal()\n\n\n\n\n\n\n\n\n\n\nGráfico com intervalo de confiança de 95%\nO intervalo de confiança para a média pode ser escrito como:\n\\[\n\\bar{x} \\pm t_{\\alpha/2,\\, n-1} \\times \\frac{s}{\\sqrt{n}}\n\\]\nem que \\(t_{\\alpha/2,\\, n-1}\\) é o quantil da distribuição t de Student com \\(n-1\\) graus de liberdade.\n\nresumo_audpc |&gt;\n  ggplot(aes(x = Irrigation, y = mean_audpc)) +\n  geom_col(width = 0.5, fill = \"skyblue\") +\n  geom_point(size = 2) +\n  geom_errorbar(aes(ymin = mean_audpc - ic_95,\n                    ymax = mean_audpc + ic_95),\n                width = 0.1) +\n  labs(x = \"Irrigação\", y = \"AUDPC média (IC 95%)\") +\n  theme_minimal()"
+  },
+  {
+    "objectID": "SITE/aula 4.html#quando-usar",
+    "href": "SITE/aula 4.html#quando-usar",
+    "title": "aula4",
+    "section": "Quando usar?",
+    "text": "Quando usar?\nO teste t para amostras independentes é usado quando queremos comparar as médias de dois grupos distintos, assumindo independência entre as observações.\nNeste caso, vamos comparar a AUDPC entre os dois tratamentos de irrigação."
+  },
+  {
+    "objectID": "SITE/aula 4.html#hipóteses",
+    "href": "SITE/aula 4.html#hipóteses",
+    "title": "aula4",
+    "section": "Hipóteses",
+    "text": "Hipóteses\nAs hipóteses do teste são:\n\\[\nH_0: \\mu_1 = \\mu_2\n\\]\n\\[\nH_1: \\mu_1 \\neq \\mu_2\n\\]\nou seja, a hipótese nula afirma que as médias populacionais são iguais, enquanto a hipótese alternativa afirma que elas diferem."
+  },
+  {
+    "objectID": "SITE/aula 4.html#estatística-do-teste",
+    "href": "SITE/aula 4.html#estatística-do-teste",
+    "title": "aula4",
+    "section": "Estatística do teste",
+    "text": "Estatística do teste\nQuando as variâncias são assumidas como diferentes, usa-se a versão de Welch do teste t, cuja estatística é:\n\\[\nt = \\frac{\\bar{x}_1 - \\bar{x}_2}{\\sqrt{\\frac{s_1^2}{n_1} + \\frac{s_2^2}{n_2}}}\n\\]\nem que:\n\n\\(\\bar{x}_1\\) e \\(\\bar{x}_2\\) são as médias amostrais;\n\\(s_1^2\\) e \\(s_2^2\\) são as variâncias amostrais;\n\\(n_1\\) e \\(n_2\\) são os tamanhos amostrais."
+  },
+  {
+    "objectID": "SITE/aula 4.html#aplicação-em-r",
+    "href": "SITE/aula 4.html#aplicação-em-r",
+    "title": "aula4",
+    "section": "Aplicação em R",
+    "text": "Aplicação em R\n\nteste_t_audpc &lt;- t.test(audpc ~ Irrigation, data = dados2)\nteste_t_audpc\n\n\n    Welch Two Sample t-test\n\ndata:  audpc by Irrigation\nt = -1.3773, df = 3.079, p-value = 0.26\nalternative hypothesis: true difference in means between group Drip and group Furrow is not equal to 0\n95 percent confidence interval:\n -1.3421436  0.5231436\nsample estimates:\n  mean in group Drip mean in group Furrow \n            13.38983             13.79933"
+  },
+  {
+    "objectID": "SITE/aula 4.html#interpretação",
+    "href": "SITE/aula 4.html#interpretação",
+    "title": "aula4",
+    "section": "Interpretação",
+    "text": "Interpretação\nO objeto retornado informa:\n\na estatística t;\nos graus de liberdade;\no valor de p;\no intervalo de confiança para a diferença entre médias;\nas médias estimadas em cada grupo.\n\nSe o valor de p for menor que o nível de significância adotado, rejeitamos \\(H_0\\) e concluímos que há evidência de diferença entre as médias."
+  },
+  {
+    "objectID": "SITE/aula 4.html#situação-experimental",
+    "href": "SITE/aula 4.html#situação-experimental",
+    "title": "aula4",
+    "section": "Situação experimental",
+    "text": "Situação experimental\nAgora usaremos a planilha escala, em que os mesmos avaliadores foram medidos em duas condições de avaliação. Nesse caso, as observações não são independentes, pois cada avaliador aparece nas duas condições.\nLogo, o teste adequado é o teste t pareado.\n\nescala &lt;- read_excel(\"dados_diversos.xlsx\", sheet = \"escala\")\n\nglimpse(escala)\n\nRows: 20\nColumns: 7\n$ assessment       &lt;chr&gt; \"Unaided\", \"Unaided\", \"Unaided\", \"Unaided\", \"Unaided\"…\n$ rater            &lt;chr&gt; \"A\", \"B\", \"C\", \"D\", \"E\", \"F\", \"G\", \"H\", \"I\", \"J\", \"A\"…\n$ acuracia         &lt;dbl&gt; 0.8092131, 0.7219848, 0.4000000, 0.8175313, 0.7476691…\n$ precisao         &lt;dbl&gt; 0.8262697, 0.7284040, 0.7149415, 0.8187018, 0.7532589…\n$ vies_geral       &lt;dbl&gt; 0.9793570, 0.9911874, 0.7827190, 0.9985702, 0.9925792…\n$ vies_sistematico &lt;dbl&gt; 1.1872167, 0.9217054, 1.1600785, 0.9481874, 1.1038873…\n$ vies_constante   &lt;dbl&gt; 0.1123982, -0.1055045, 0.7301412, -0.0056930, 0.07194…\n\nhead(escala)\n\n# A tibble: 6 × 7\n  assessment rater acuracia precisao vies_geral vies_sistematico vies_constante\n  &lt;chr&gt;      &lt;chr&gt;    &lt;dbl&gt;    &lt;dbl&gt;      &lt;dbl&gt;            &lt;dbl&gt;          &lt;dbl&gt;\n1 Unaided    A        0.809    0.826      0.979            1.19         0.112  \n2 Unaided    B        0.722    0.728      0.991            0.922       -0.106  \n3 Unaided    C        0.4      0.715      0.783            1.16         0.730  \n4 Unaided    D        0.818    0.819      0.999            0.948       -0.00569\n5 Unaided    E        0.748    0.753      0.993            1.10         0.0719 \n6 Unaided    F        0.45     0.751      0.925            0.802        0.336"
+  },
+  {
+    "objectID": "SITE/aula 4.html#visualização-inicial",
+    "href": "SITE/aula 4.html#visualização-inicial",
+    "title": "aula4",
+    "section": "Visualização inicial",
+    "text": "Visualização inicial\n\nescala |&gt;\n  ggplot(aes(x = assessment, y = log(acuracia))) +\n  geom_boxplot(outlier.colour = NA) +\n  geom_jitter(width = 0.1, alpha = 0.7) +\n  labs(x = \"Tipo de avaliação\", y = \"log(acuracia)\") +\n  theme_minimal()"
+  },
+  {
+    "objectID": "SITE/aula 4.html#organização-dos-dados-em-formato-largo",
+    "href": "SITE/aula 4.html#organização-dos-dados-em-formato-largo",
+    "title": "aula4",
+    "section": "Organização dos dados em formato largo",
+    "text": "Organização dos dados em formato largo\nPara o teste pareado, é conveniente reorganizar a tabela de forma que cada linha corresponda a um avaliador e cada coluna a uma condição.\n\nescala_wide &lt;- escala |&gt;\n  dplyr::select(rater, assessment, acuracia) |&gt;\n  pivot_wider(\n    names_from = assessment,\n    values_from = acuracia\n  )\n\nescala_wide\n\n# A tibble: 10 × 3\n   rater Unaided Aided1\n   &lt;chr&gt;   &lt;dbl&gt;  &lt;dbl&gt;\n 1 A       0.809  0.907\n 2 B       0.722  0.913\n 3 C       0.4    0.915\n 4 D       0.818  0.960\n 5 E       0.748  0.959\n 6 F       0.45   0.903\n 7 G       0.807  0.851\n 8 H       0.781  0.880\n 9 I       0.776  0.950\n10 J       0.5    0.944"
+  },
+  {
+    "objectID": "SITE/aula 4.html#lógica-do-teste-t-pareado",
+    "href": "SITE/aula 4.html#lógica-do-teste-t-pareado",
+    "title": "aula4",
+    "section": "Lógica do teste t pareado",
+    "text": "Lógica do teste t pareado\nNo teste pareado, o interesse recai sobre a diferença entre as duas medidas do mesmo indivíduo:\n\\[\nd_i = x_{i1} - x_{i2}\n\\]\nO teste é então realizado sobre a média das diferenças:\n\\[\nH_0: \\mu_d = 0\n\\]\n\\[\nH_1: \\mu_d \\neq 0\n\\]\nA estatística do teste é:\n\\[\nt = \\frac{\\bar{d}}{s_d / \\sqrt{n}}\n\\]\nem que:\n\n\\(\\bar{d}\\) é a média das diferenças;\n\\(s_d\\) é o desvio-padrão das diferenças;\n\\(n\\) é o número de pares."
+  },
+  {
+    "objectID": "SITE/aula 4.html#aplicação-do-teste-t-pareado",
+    "href": "SITE/aula 4.html#aplicação-do-teste-t-pareado",
+    "title": "aula4",
+    "section": "Aplicação do teste t pareado",
+    "text": "Aplicação do teste t pareado\n\nteste_t_pareado &lt;- t.test(\n  escala_wide$Aided1,\n  escala_wide$Unaided,\n  paired = TRUE\n)\n\nteste_t_pareado\n\n\n    Paired t-test\n\ndata:  escala_wide$Aided1 and escala_wide$Unaided\nt = 4.4266, df = 9, p-value = 0.001655\nalternative hypothesis: true mean difference is not equal to 0\n95 percent confidence interval:\n 0.1159591 0.3583453\nsample estimates:\nmean difference \n      0.2371522"
+  },
+  {
+    "objectID": "SITE/aula 4.html#visualização-das-diferenças",
+    "href": "SITE/aula 4.html#visualização-das-diferenças",
+    "title": "aula4",
+    "section": "Visualização das diferenças",
+    "text": "Visualização das diferenças\nUma forma útil de compreender o teste pareado é visualizar explicitamente as diferenças entre pares.\n\ndiferencas &lt;- escala_wide |&gt;\n  mutate(diff = Aided1 - Unaided)\n\ndiferencas |&gt;\n  ggplot(aes(x = diff)) +\n  geom_histogram(bins = 10, color = \"white\") +\n  labs(x = \"Diferença pareada (Aided1 - Unaided)\", y = \"Frequência\") +\n  theme_minimal()"
+  },
+  {
+    "objectID": "SITE/aula 4.html#por-que-verificar-a-normalidade",
+    "href": "SITE/aula 4.html#por-que-verificar-a-normalidade",
+    "title": "aula4",
+    "section": "Por que verificar a normalidade?",
+    "text": "Por que verificar a normalidade?\nO teste t pareado assume que as diferenças entre pares seguem, aproximadamente, uma distribuição normal. Não é necessário que cada grupo separadamente seja normal; o foco está nas diferenças."
+  },
+  {
+    "objectID": "SITE/aula 4.html#inspeção-gráfica-e-teste-de-shapiro-wilk",
+    "href": "SITE/aula 4.html#inspeção-gráfica-e-teste-de-shapiro-wilk",
+    "title": "aula4",
+    "section": "Inspeção gráfica e teste de Shapiro-Wilk",
+    "text": "Inspeção gráfica e teste de Shapiro-Wilk\n\nqqnorm(diferencas$diff)\nqqline(diferencas$diff)\n\n\n\n\n\n\n\nshapiro.test(diferencas$diff)\n\n\n    Shapiro-Wilk normality test\n\ndata:  diferencas$diff\nW = 0.8566, p-value = 0.06956"
+  },
+  {
+    "objectID": "SITE/aula 4.html#teste-não-paramétrico-de-wilcoxon-pareado",
+    "href": "SITE/aula 4.html#teste-não-paramétrico-de-wilcoxon-pareado",
+    "title": "aula4",
+    "section": "Teste não paramétrico de Wilcoxon pareado",
+    "text": "Teste não paramétrico de Wilcoxon pareado\nSe a suposição de normalidade das diferenças for claramente violada, uma alternativa clássica é o teste de postos sinalizados de Wilcoxon.\nEsse teste não compara médias, mas sim a tendência central das diferenças, com base nas magnitudes ordenadas dos desvios em relação a zero.\nAs hipóteses continuam sendo, em essência:\n\\[\nH_0: \\text{a distribuição das diferenças é centrada em zero}\n\\]\n\\[\nH_1: \\text{a distribuição das diferenças não é centrada em zero}\n\\]\n\nteste_wilcox &lt;- wilcox.test(\n  escala_wide$Unaided,\n  escala_wide$Aided1,\n  paired = TRUE\n)\n\nteste_wilcox\n\n\n    Wilcoxon signed rank exact test\n\ndata:  escala_wide$Unaided and escala_wide$Aided1\nV = 0, p-value = 0.001953\nalternative hypothesis: true location shift is not equal to 0"
+  },
+  {
+    "objectID": "SITE/aula 4.html#comentário-metodológico",
+    "href": "SITE/aula 4.html#comentário-metodológico",
+    "title": "aula4",
+    "section": "Comentário metodológico",
+    "text": "Comentário metodológico\nEm conjuntos de dados pequenos, é recomendável usar o gráfico QQ, o histograma das diferenças e o conhecimento do experimento em conjunto, em vez de depender exclusivamente do teste de Shapiro-Wilk. Pequenos desvios da normalidade nem sempre invalidam o teste t, sobretudo quando não há assimetria extrema ou valores discrepantes muito influentes."
+  },
+  {
+    "objectID": "SITE/aula 4.html#situação-experimental-1",
+    "href": "SITE/aula 4.html#situação-experimental-1",
+    "title": "aula4",
+    "section": "Situação experimental",
+    "text": "Situação experimental\nAgora analisaremos a planilha micelial, que contém dados de taxa de crescimento micelial (tcm) para diferentes espécies.\nQuando o objetivo é comparar a média de uma variável resposta entre três ou mais grupos, a abordagem clássica é a análise de variância (ANOVA).\n\nmicelial &lt;- read_excel(\"dados_diversos.xlsx\", sheet = \"micelial\")\n\nmicelial |&gt;\n  count(especie)\n\n# A tibble: 5 × 2\n  especie     n\n  &lt;chr&gt;   &lt;int&gt;\n1 Fasi        6\n2 Faus        6\n3 Fcor        6\n4 Fgra        6\n5 Fmer        6"
+  },
+  {
+    "objectID": "SITE/aula 4.html#visualização-exploratória",
+    "href": "SITE/aula 4.html#visualização-exploratória",
+    "title": "aula4",
+    "section": "Visualização exploratória",
+    "text": "Visualização exploratória\n\nset.seed(2)\n\nmicelial |&gt;\n  ggplot(aes(x = reorder(especie, tcm), y = tcm)) +\n  geom_boxplot(outlier.colour = NA) +\n  geom_jitter(width = 0.2, alpha = 0.7) +\n  coord_flip() +\n  labs(x = \"Espécie\", y = \"Taxa de crescimento micelial\") +\n  theme_minimal()"
+  },
+  {
+    "objectID": "SITE/aula 4.html#modelo-de-anova",
+    "href": "SITE/aula 4.html#modelo-de-anova",
+    "title": "aula4",
+    "section": "Modelo de ANOVA",
+    "text": "Modelo de ANOVA\nO modelo clássico de ANOVA de um fator pode ser escrito como:\n\\[\nY_{ij} = \\mu + \\tau_i + \\varepsilon_{ij}\n\\]\nem que:\n\n\\(Y_{ij}\\) é a observação da unidade \\(j\\) no grupo \\(i\\);\n\\(\\mu\\) é a média geral;\n\\(\\tau_i\\) é o efeito do grupo \\(i\\);\n\\(\\varepsilon_{ij}\\) é o erro aleatório, assumido com distribuição normal, média zero e variância constante.\n\nAs hipóteses são:\n\\[\nH_0: \\mu_1 = \\mu_2 = \\cdots = \\mu_k\n\\]\n\\[\nH_1: \\text{pelo menos uma média difere das demais}\n\\]\nA estatística de teste é a razão entre o quadrado médio entre grupos e o quadrado médio residual:\n\\[\nF = \\frac{QM_{trat}}{QM_{res}}\n\\]\nValores altos de \\(F\\) indicam maior evidência contra a hipótese nula."
+  },
+  {
+    "objectID": "SITE/aula 4.html#ajuste-do-modelo",
+    "href": "SITE/aula 4.html#ajuste-do-modelo",
+    "title": "aula4",
+    "section": "Ajuste do modelo",
+    "text": "Ajuste do modelo\n\nm1 &lt;- lm(tcm ~ especie, data = micelial)\nsummary(m1)\n\n\nCall:\nlm(formula = tcm ~ especie, data = micelial)\n\nResiduals:\n     Min       1Q   Median       3Q      Max \n-0.23667 -0.09667  0.01583  0.08833  0.28333 \n\nCoefficients:\n            Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept)  1.57167    0.05585  28.140  &lt; 2e-16 ***\nespecieFaus -0.33500    0.07899  -4.241 0.000266 ***\nespecieFcor -0.25000    0.07899  -3.165 0.004047 ** \nespecieFgra -0.66000    0.07899  -8.356 1.05e-08 ***\nespecieFmer -0.14500    0.07899  -1.836 0.078317 .  \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 0.1368 on 25 degrees of freedom\nMultiple R-squared:  0.7585,    Adjusted R-squared:  0.7199 \nF-statistic: 19.63 on 4 and 25 DF,  p-value: 2.028e-07\n\nanova(m1)\n\nAnalysis of Variance Table\n\nResponse: tcm\n          Df  Sum Sq Mean Sq F value    Pr(&gt;F)    \nespecie    4 1.46958 0.36739  19.629 2.028e-07 ***\nResiduals 25 0.46792 0.01872                      \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1"
+  },
+  {
+    "objectID": "SITE/aula 4.html#inspeção-dos-resíduos",
+    "href": "SITE/aula 4.html#inspeção-dos-resíduos",
+    "title": "aula4",
+    "section": "Inspeção dos resíduos",
+    "text": "Inspeção dos resíduos\n\nhist(m1$residuals)\n\n\n\n\n\n\n\nqqnorm(m1$residuals)\nqqline(m1$residuals)\n\n\n\n\n\n\n\nshapiro.test(m1$residuals)\n\n\n    Shapiro-Wilk normality test\n\ndata:  m1$residuals\nW = 0.9821, p-value = 0.8782"
+  },
+  {
+    "objectID": "SITE/aula 4.html#homogeneidade-de-variâncias",
+    "href": "SITE/aula 4.html#homogeneidade-de-variâncias",
+    "title": "aula4",
+    "section": "Homogeneidade de variâncias",
+    "text": "Homogeneidade de variâncias\nO teste de Bartlett avalia a hipótese de igualdade das variâncias entre grupos:\n\\[\nH_0: \\sigma_1^2 = \\sigma_2^2 = \\cdots = \\sigma_k^2\n\\]\n\nbartlett.test(tcm ~ especie, data = micelial)\n\n\n    Bartlett test of homogeneity of variances\n\ndata:  tcm by especie\nBartlett's K-squared = 4.4367, df = 4, p-value = 0.3501"
+  },
+  {
+    "objectID": "SITE/aula 4.html#comentário",
+    "href": "SITE/aula 4.html#comentário",
+    "title": "aula4",
+    "section": "Comentário",
+    "text": "Comentário\nAssim como na análise anterior, os diagnósticos não devem ser interpretados apenas de forma mecânica. A inspeção gráfica dos resíduos é essencial para avaliar desvios importantes da normalidade e da homogeneidade."
+  },
+  {
+    "objectID": "SITE/aula 4.html#por-que-não-comparar-pares-com-vários-testes-t",
+    "href": "SITE/aula 4.html#por-que-não-comparar-pares-com-vários-testes-t",
+    "title": "aula4",
+    "section": "Por que não comparar pares com vários testes t?",
+    "text": "Por que não comparar pares com vários testes t?\nDepois que a ANOVA indica diferença global entre médias, surge a pergunta: quais grupos diferem entre si?\nUma estratégia inadequada seria fazer vários testes t independentes, pois isso inflaciona a probabilidade de erro do tipo I. Para contornar esse problema, utilizamos procedimentos de comparação múltipla que controlam esse erro, como o método de Tukey."
+  },
+  {
+    "objectID": "SITE/aula 4.html#médias-marginais-estimadas",
+    "href": "SITE/aula 4.html#médias-marginais-estimadas",
+    "title": "aula4",
+    "section": "Médias marginais estimadas",
+    "text": "Médias marginais estimadas\nO pacote emmeans calcula as médias ajustadas do modelo, também chamadas de médias marginais estimadas.\n\nmedias_m1 &lt;- emmeans(m1, ~ especie)\nmedias_m1\n\n especie emmean     SE df lower.CL upper.CL\n Fasi     1.572 0.0559 25    1.457     1.69\n Faus     1.237 0.0559 25    1.122     1.35\n Fcor     1.322 0.0559 25    1.207     1.44\n Fgra     0.912 0.0559 25    0.797     1.03\n Fmer     1.427 0.0559 25    1.312     1.54\n\nConfidence level used: 0.95"
+  },
+  {
+    "objectID": "SITE/aula 4.html#comparações-múltiplas-de-tukey",
+    "href": "SITE/aula 4.html#comparações-múltiplas-de-tukey",
+    "title": "aula4",
+    "section": "Comparações múltiplas de Tukey",
+    "text": "Comparações múltiplas de Tukey\n\npairs(medias_m1, adjust = \"tukey\")\n\n contrast    estimate    SE df t.ratio p.value\n Fasi - Faus    0.335 0.079 25   4.241  0.0023\n Fasi - Fcor    0.250 0.079 25   3.165  0.0302\n Fasi - Fgra    0.660 0.079 25   8.356 &lt;0.0001\n Fasi - Fmer    0.145 0.079 25   1.836  0.3765\n Faus - Fcor   -0.085 0.079 25  -1.076  0.8169\n Faus - Fgra    0.325 0.079 25   4.115  0.0031\n Faus - Fmer   -0.190 0.079 25  -2.405  0.1469\n Fcor - Fgra    0.410 0.079 25   5.191  0.0002\n Fcor - Fmer   -0.105 0.079 25  -1.329  0.6761\n Fgra - Fmer   -0.515 0.079 25  -6.520 &lt;0.0001\n\nP value adjustment: tukey method for comparing a family of 5 estimates"
+  },
+  {
+    "objectID": "SITE/aula 4.html#letras-de-agrupamento",
+    "href": "SITE/aula 4.html#letras-de-agrupamento",
+    "title": "aula4",
+    "section": "Letras de agrupamento",
+    "text": "Letras de agrupamento\nUma forma prática de resumir os resultados é usar letras para indicar grupos estatisticamente semelhantes. Médias seguidas pela mesma letra não diferem entre si ao nível de significância adotado.\n\nmedias_m1b &lt;- cld(medias_m1, Letters = letters)\nmedias_m1b\n\n especie emmean     SE df lower.CL upper.CL .group\n Fgra     0.912 0.0559 25    0.797     1.03  a    \n Faus     1.237 0.0559 25    1.122     1.35   b   \n Fcor     1.322 0.0559 25    1.207     1.44   b   \n Fmer     1.427 0.0559 25    1.312     1.54   bc  \n Fasi     1.572 0.0559 25    1.457     1.69    c  \n\nConfidence level used: 0.95 \nP value adjustment: tukey method for comparing a family of 5 estimates \nsignificance level used: alpha = 0.05 \nNOTE: If two or more means share the same grouping symbol,\n      then we cannot show them to be different.\n      But we also did not show them to be the same."
+  },
+  {
+    "objectID": "SITE/aula 4.html#gráfico-das-médias-com-intervalos-de-confiança-e-letras",
+    "href": "SITE/aula 4.html#gráfico-das-médias-com-intervalos-de-confiança-e-letras",
+    "title": "aula4",
+    "section": "Gráfico das médias com intervalos de confiança e letras",
+    "text": "Gráfico das médias com intervalos de confiança e letras\n\nmedias_m1b |&gt;\n  ggplot(aes(x = reorder(especie, emmean), y = emmean, label = .group)) +\n  geom_point(size = 2) +\n  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.06) +\n  geom_text(hjust = 0, nudge_y = 0.12, size = 4) +\n  coord_flip() +\n  labs(\n    x = \"\",\n    y = \"Taxa de crescimento micelial (mm/dia)\"\n  ) +\n  theme_classic()"
+  },
+  {
+    "objectID": "SITE/aula 4.html#teste-t-para-amostras-independentes",
+    "href": "SITE/aula 4.html#teste-t-para-amostras-independentes",
+    "title": "aula4",
+    "section": "1. Teste t para amostras independentes",
+    "text": "1. Teste t para amostras independentes\nUsado para comparar a média de dois grupos independentes.\n\nUnidade analítica em cada grupo é diferente.\nExemplo desta aula: comparação da AUDPC entre tratamentos de irrigação."
+  },
+  {
+    "objectID": "SITE/aula 4.html#teste-t-pareado",
+    "href": "SITE/aula 4.html#teste-t-pareado",
+    "title": "aula4",
+    "section": "2. Teste t pareado",
+    "text": "2. Teste t pareado\nUsado quando as duas medidas vêm dos mesmos indivíduos ou de unidades emparelhadas.\n\nO teste é realizado sobre as diferenças entre pares.\nExemplo desta aula: comparação da acurácia dos mesmos avaliadores sob duas condições."
+  },
+  {
+    "objectID": "SITE/aula 4.html#teste-de-wilcoxon-pareado",
+    "href": "SITE/aula 4.html#teste-de-wilcoxon-pareado",
+    "title": "aula4",
+    "section": "3. Teste de Wilcoxon pareado",
+    "text": "3. Teste de Wilcoxon pareado\nAlternativa não paramétrica ao teste t pareado.\n\nÚtil quando a distribuição das diferenças é muito assimétrica ou quando há clara violação da normalidade."
+  },
+  {
+    "objectID": "SITE/aula 4.html#anova",
+    "href": "SITE/aula 4.html#anova",
+    "title": "aula4",
+    "section": "4. ANOVA",
+    "text": "4. ANOVA\nUsada para comparar três ou mais médias simultaneamente.\n\nPrimeiro testa-se o efeito global.\nDepois, se necessário, investigam-se comparações múltiplas."
+  },
+  {
+    "objectID": "SITE/aula 4.html#emmeans-e-tukey",
+    "href": "SITE/aula 4.html#emmeans-e-tukey",
+    "title": "aula4",
+    "section": "5. emmeans e Tukey",
+    "text": "5. emmeans e Tukey\nPermitem estimar médias ajustadas e comparar grupos com controle do erro associado a múltiplas comparações."
+  },
+  {
+    "objectID": "SITE/aula 2.html",
+    "href": "SITE/aula 2.html",
+    "title": "Aula",
+    "section": "",
+    "text": "Este material apresenta um fluxo básico e comentado para:\n\nimportar dados de diferentes fontes;\nreorganizar tabelas do formato largo para o formato longo;\nselecionar e filtrar dados;\nresumir estatisticamente os valores;\nconstruir gráficos exploratórios e comparativos.\n\nA ideia é que cada etapa da análise fique clara, tanto do ponto de vista conceitual quanto do ponto de vista do código.\n\n\nNesta primeira etapa, carregamos dados armazenados em diferentes formatos. Em análise de dados, é comum trabalhar com arquivos locais em Excel ou CSV, além de planilhas online.\n\n\nArquivos do Excel geralmente possuem uma ou mais abas. A função read_excel() permite indicar tanto o arquivo quanto a aba a ser importada.\n\n# Carrega o pacote readxl, usado para ler arquivos .xls e .xlsx\nlibrary(readxl)\n\n# Importa a aba \"coffee rust\" do arquivo Excel local\nmeudado &lt;- read_excel(\n  \"dados_diversos.xlsx\",\n  sheet = \"coffee rust\"\n)\n\n# Exibe o objeto importado\nmeudado\n\n# A tibble: 405 × 13\n    farm region zone       district      lon   lat altitude cultivar shade    \n   &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;      &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;    \n 1     1 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n 2     2 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n 3     3 SNNPR  Bench Maji Debub Bench  35.4  6.90     1434 Mixture  Mid shade\n 4     4 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n 5     5 SNNPR  Bench Maji Debub Bench  35.4  6.90     1400 Local    Sun      \n 6     6 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n 7     7 SNNPR  Bench Maji Debub Bench  35.4  6.90     1432 Mixture  Mid shade\n 8     8 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n 9     9 SNNPR  Bench Maji Debub Bench  35.4  6.89     1400 Local    Sun      \n10    10 SNNPR  Bench Maji Debub Bench  35.4  6.88     1342 Mixture  Mid shade\n# ℹ 395 more rows\n# ℹ 4 more variables: cropping_system &lt;chr&gt;, farm_management &lt;chr&gt;, inc &lt;dbl&gt;,\n#   sev2 &lt;dbl&gt;\n\n\n\n\n\nArquivos CSV são muito comuns por serem leves, simples e compatíveis com diferentes programas.\n\n# Carrega o tidyverse, que inclui readr, dplyr, ggplot2, tidyr etc.\nlibrary(tidyverse)\n\n── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──\n✔ dplyr     1.2.0     ✔ readr     2.2.0\n✔ forcats   1.0.1     ✔ stringr   1.6.0\n✔ ggplot2   4.0.2     ✔ tibble    3.3.1\n✔ lubridate 1.9.5     ✔ tidyr     1.3.2\n✔ purrr     1.2.1     \n── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──\n✖ dplyr::filter() masks stats::filter()\n✖ dplyr::lag()    masks stats::lag()\nℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors\n\n# Importa um arquivo CSV local\nmeucsv &lt;- read_csv(\"experimento.csv\")\n\nRows: 192 Columns: 7\n── Column specification ────────────────────────────────────────────────────────\nDelimiter: \",\"\nchr (3): location, cultivar, treatment\ndbl (4): year, block, severity, yield_kg_ha\n\nℹ Use `spec()` to retrieve the full column specification for this data.\nℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.\n\n# Exibe os dados importados\nmeucsv\n\n# A tibble: 192 × 7\n    year location cultivar block treatment severity yield_kg_ha\n   &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;    &lt;dbl&gt; &lt;chr&gt;        &lt;dbl&gt;       &lt;dbl&gt;\n 1  2021 Vicosa   A            1 Control       41.1        3450\n 2  2021 Vicosa   A            1 Fungicide     20.4        3739\n 3  2021 Vicosa   A            2 Control       45.7        3607\n 4  2021 Vicosa   A            2 Fungicide     16.2        4099\n 5  2021 Vicosa   A            3 Control       40.2        3528\n 6  2021 Vicosa   A            3 Fungicide     15.5        3909\n 7  2021 Vicosa   A            4 Control       32.1        3652\n 8  2021 Vicosa   A            4 Fungicide     15.1        3937\n 9  2021 Vicosa   B            1 Control       29          3689\n10  2021 Vicosa   B            1 Fungicide     12.8        4067\n# ℹ 182 more rows\n\n\n\n\n\nQuando os dados estão na nuvem, podemos importar diretamente a partir de uma URL pública. Aqui foi usado o pacote gsheet.\n\n# Carrega o pacote gsheet para importar planilhas públicas do Google Sheets\nlibrary(gsheet)\n\n# Importa uma aba de uma planilha Google\nmeudadonuvem &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=1110310360#gid=1110310360\"\n)\n\n# Visualiza a tabela importada\nmeudadonuvem\n\n# A tibble: 30 × 3\n   trat            t   sev\n   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;\n 1 Gotejamento     0   1.1\n 2 Gotejamento     7   3.7\n 3 Gotejamento    14  10.7\n 4 Gotejamento    21  11.6\n 5 Gotejamento    28  15.3\n 6 Gotejamento    35  18.1\n 7 Gotejamento    42  32.4\n 8 Gotejamento    49  35.4\n 9 Gotejamento    56  41.9\n10 Gotejamento    63  43.4\n# ℹ 20 more rows\n\n# Importa outra aba da mesma planilha, contendo dados de curvas\ncurve &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=1807247585#gid=1807247585\"\n)\n\n# Importa outra aba, com dados relacionados a magnésio\nmagnesio &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=983033137#gid=983033137\"\n)\n\n# Exibe os dados importados\nmagnesio\n\n# A tibble: 20 × 3\n   trat      rep  comp\n   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt;\n 1 Mg2         1   9  \n 2 Mg2         2  12.5\n 3 Mg2         3  10  \n 4 Mg2         4   8  \n 5 Mg2         5  13.2\n 6 Mg2         6  11  \n 7 Mg2         7  10.8\n 8 Mg2         8   9.5\n 9 Mg2         9  10.8\n10 Mg2        10  10.4\n11 control     1  13.7\n12 control     2  15.9\n13 control     3  15.7\n14 control     4  14.2\n15 control     5  15.9\n16 control     6  16.5\n17 control     7  18  \n18 control     8  14.4\n19 control     9  16.4\n20 control    10  16  \n\n\n\n\n\n\nNem sempre precisamos começar de arquivos locais. Muitos pacotes já trazem bases internas úteis para ensino, teste e demonstração. Também podemos ler diretamente arquivos hospedados na web.\n\n# Carrega o pacote epifitter\nlibrary(epifitter)\n\n# Acessa um conjunto de dados interno do pacote\ndadopacote &lt;- epifitter::PowderyMildew\n\n# Examina a estrutura do objeto para entender tipos de variáveis e dimensões\nstr(dadopacote)\n\n'data.frame':   240 obs. of  5 variables:\n $ irrigation_type: Factor w/ 5 levels \"Drip\",\"Furrow\",..: 1 1 1 1 1 1 1 1 1 1 ...\n $ moisture       : Factor w/ 2 levels \"High moisture\",..: 1 1 1 1 1 1 1 1 1 1 ...\n $ block          : int  1 2 3 1 2 3 1 2 3 1 ...\n $ time           : int  0 0 0 7 7 7 14 14 14 21 ...\n $ sev            : num  0.011 0.011 0.011 0.034 0.04 0.036 0.114 0.109 0.097 0.126 ...\n\n# Lê um arquivo CSV diretamente de um repositório online\n# Esse procedimento é útil quando os dados estão no GitHub ou em outro servidor público\n# O arquivo é importado diretamente pela URL\n dadogh &lt;- read_csv(\n  \"https://raw.githubusercontent.com/emdelponte/paper-coffee-rust-Ethiopia/refs/heads/master/data/survey_clean.csv\"\n)\n\nRows: 405 Columns: 13\n── Column specification ────────────────────────────────────────────────────────\nDelimiter: \",\"\nchr (7): region, zone, district, cultivar, shade, cropping_system, farm_mana...\ndbl (6): farm, lon, lat, altitude, inc, sev2\n\nℹ Use `spec()` to retrieve the full column specification for this data.\nℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.\n\n# Visualiza as primeiras linhas\nhead(dadogh)\n\n# A tibble: 6 × 13\n   farm region zone       district      lon   lat altitude cultivar shade    \n  &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;      &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;    \n1     1 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n2     2 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n3     3 SNNPR  Bench Maji Debub Bench  35.4  6.90     1434 Mixture  Mid shade\n4     4 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n5     5 SNNPR  Bench Maji Debub Bench  35.4  6.90     1400 Local    Sun      \n6     6 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n# ℹ 4 more variables: cropping_system &lt;chr&gt;, farm_management &lt;chr&gt;, inc &lt;dbl&gt;,\n#   sev2 &lt;dbl&gt;\n\n\n\n\n\nMuitas análises e gráficos no ggplot2 funcionam melhor quando os dados estão no chamado formato longo.\nNo formato largo, cada método ou variável medida pode estar em uma coluna diferente. No formato longo, essas colunas são empilhadas em duas colunas principais:\n\numa coluna que identifica o grupo, método ou categoria;\noutra coluna que contém os valores observados.\n\n\n\n\n# Importa a planilha com dados de softwares de avaliação\nsoftware &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=373270992#gid=373270992\"\n)\n\n# Mostra a estrutura geral dos dados\n# glimpse() é útil para ver nomes de colunas, tipos e alguns valores\n glimpse(software)\n\nRows: 70\nColumns: 5\n$ crop       &lt;chr&gt; \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Ro…\n$ rep        &lt;dbl&gt; 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,…\n$ Assess     &lt;dbl&gt; 19.95, 4.77, 72.11, 81.37, 25.78, 80.45, 81.69, 7.02, 11.23…\n$ LeafDoctor &lt;dbl&gt; 31.55, 13.53, 77.59, 90.83, 24.54, 73.84, 86.78, 14.04, 16.…\n$ ImageJ     &lt;dbl&gt; 26.04, 5.16, 69.46, 82.68, 13.13, 69.90, 88.66, 6.40, 10.82…\n\n# Cria um objeto com nome mais genérico para facilitar a escrita posterior\n dados &lt;- software\n\n\n\n\nNeste exemplo, as colunas Assess, LeafDoctor e ImageJ representam medidas obtidas por diferentes softwares. Vamos empilhá-las em uma única coluna de valores.\n\n# Converte os dados do formato largo para o formato longo\n# cols: colunas que serão empilhadas\n# names_to: nome da nova coluna que guardará o nome do software\n# values_to: nome da nova coluna que guardará os valores de severidade\n dados_longo &lt;- dados |&gt;\n  pivot_longer(\n    cols = c(Assess, LeafDoctor, ImageJ),\n    names_to = \"software\",\n    values_to = \"severidade\"\n  )\n\n# Exibe o resultado\n dados_longo\n\n# A tibble: 210 × 4\n   crop    rep software   severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;           &lt;dbl&gt;\n 1 Rosa     21 Assess          20.0 \n 2 Rosa     21 LeafDoctor      31.6 \n 3 Rosa     21 ImageJ          26.0 \n 4 Rosa     22 Assess           4.77\n 5 Rosa     22 LeafDoctor      13.5 \n 6 Rosa     22 ImageJ           5.16\n 7 Rosa     23 Assess          72.1 \n 8 Rosa     23 LeafDoctor      77.6 \n 9 Rosa     23 ImageJ          69.5 \n10 Rosa     24 Assess          81.4 \n# ℹ 200 more rows\n\n\n\n\n\nUma vez no formato longo, fica muito mais simples comparar grupos usando ggplot2.\n\n dados_longo |&gt;\n  ggplot(aes(x = software, y = severidade, color = software)) +\n  geom_boxplot(outlier.colour = NA) +\n  geom_jitter(\n    width = 0.1,\n    alpha = 0.3\n  ) +\n  theme_minimal() +\n  theme(legend.position = \"none\") +\n  facet_wrap(~ crop)\n\n\n\n\n\n\n\n\nNeste gráfico:\n\ngeom_boxplot() resume a distribuição dos dados;\ngeom_jitter() mostra os pontos individuais, evitando sobreposição excessiva;\nfacet_wrap(~ crop) separa os gráficos por cultura.\n\n\n\n\n\nAgora vamos praticar dois verbos muito importantes do dplyr:\n\nselect(): escolhe colunas;\nfilter(): escolhe linhas com base em uma condição.\n\n\n# Seleciona apenas três colunas do objeto original\nAssess &lt;- software |&gt;\n  select(crop, rep, Assess)\nAssess\n\n# A tibble: 70 × 3\n   crop    rep Assess\n   &lt;chr&gt; &lt;dbl&gt;  &lt;dbl&gt;\n 1 Rosa     21  20.0 \n 2 Rosa     22   4.77\n 3 Rosa     23  72.1 \n 4 Rosa     24  81.4 \n 5 Rosa     25  25.8 \n 6 Rosa     26  80.4 \n 7 Rosa     27  81.7 \n 8 Rosa     28   7.02\n 9 Rosa     29  11.2 \n10 Rosa     30  79.1 \n# ℹ 60 more rows\n\n# Filtra no objeto longo apenas as observações do software Assess\nAssess2 &lt;- dados_longo |&gt;\n  filter(software == \"Assess\")\nAssess2\n\n# A tibble: 70 × 4\n   crop    rep software severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;         &lt;dbl&gt;\n 1 Rosa     21 Assess        20.0 \n 2 Rosa     22 Assess         4.77\n 3 Rosa     23 Assess        72.1 \n 4 Rosa     24 Assess        81.4 \n 5 Rosa     25 Assess        25.8 \n 6 Rosa     26 Assess        80.4 \n 7 Rosa     27 Assess        81.7 \n 8 Rosa     28 Assess         7.02\n 9 Rosa     29 Assess        11.2 \n10 Rosa     30 Assess        79.1 \n# ℹ 60 more rows\n\n# Filtra apenas observações do ImageJ\nImageJ &lt;- dados_longo |&gt;\n  filter(software == \"ImageJ\")\nImageJ\n\n# A tibble: 70 × 4\n   crop    rep software severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;         &lt;dbl&gt;\n 1 Rosa     21 ImageJ        26.0 \n 2 Rosa     22 ImageJ         5.16\n 3 Rosa     23 ImageJ        69.5 \n 4 Rosa     24 ImageJ        82.7 \n 5 Rosa     25 ImageJ        13.1 \n 6 Rosa     26 ImageJ        69.9 \n 7 Rosa     27 ImageJ        88.7 \n 8 Rosa     28 ImageJ         6.4 \n 9 Rosa     29 ImageJ        10.8 \n10 Rosa     30 ImageJ        78.2 \n# ℹ 60 more rows\n\n# Filtra apenas observações do LeafDoctor\nLeafDoctor &lt;- dados_longo |&gt;\n  filter(software == \"LeafDoctor\")\nLeafDoctor\n\n# A tibble: 70 × 4\n   crop    rep software   severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;           &lt;dbl&gt;\n 1 Rosa     21 LeafDoctor       31.6\n 2 Rosa     22 LeafDoctor       13.5\n 3 Rosa     23 LeafDoctor       77.6\n 4 Rosa     24 LeafDoctor       90.8\n 5 Rosa     25 LeafDoctor       24.5\n 6 Rosa     26 LeafDoctor       73.8\n 7 Rosa     27 LeafDoctor       86.8\n 8 Rosa     28 LeafDoctor       14.0\n 9 Rosa     29 LeafDoctor       16.0\n10 Rosa     30 LeafDoctor       77.0\n# ℹ 60 more rows\n\n\n\n\n\nApós filtrar os dados por software, podemos construir gráficos separados e depois combiná-los em um painel.\n\n# Gráfico para Assess\np_A &lt;- Assess2 |&gt;\n  ggplot(aes(x = crop, y = severidade, color = crop)) +\n  geom_jitter(width = 0.1) +\n  labs(title = \"Assess\")\n\n# Gráfico para LeafDoctor\np_ld &lt;- LeafDoctor |&gt;\n  ggplot(aes(x = crop, y = severidade, color = crop)) +\n  geom_jitter(width = 0.1) +\n  labs(title = \"LeafDoctor\")\n\np_ld\n\n\n\n\n\n\n\n# Gráfico para ImageJ\np_ij &lt;- ImageJ |&gt;\n  ggplot(aes(x = crop, y = severidade, color = crop)) +\n  geom_jitter(width = 0.1) +\n  labs(title = \"ImageJ\")\n\np_ij\n\n\n\n\n\n\n\n# Carrega o patchwork para combinar múltiplos gráficos\nlibrary(patchwork)\n\n# Combina os gráficos em um arranjo de painel\n((p_ld | p_ij) / p_A) +\n  plot_annotation(tag_levels = \"A\") +\n  plot_layout(guides = \"collect\") &\n  theme(legend.position = \"bottom\")\n\n\n\n\n\n\n\n# Salva o gráfico em arquivo PNG\n# bg = \"white\" evita fundo transparente em alguns casos\n ggsave(\"plot1.png\", width = 5, height = 5, bg = \"white\")\n\n\n\n\nAlém de visualizar dados brutos, é importante calcular estatísticas-resumo, como média e desvio-padrão.\n\n\n\n# Média geral da severidade\nmean(dados_longo$severidade)\n\n[1] 19.6189\n\n# Desvio-padrão geral da severidade\nsd(dados_longo$severidade)\n\n[1] 23.84137\n\n\n\n\n\nAqui agrupamos os dados por crop e software, calculamos média e desvio-padrão, e depois filtramos apenas o software Assess.\n\nplot2 &lt;- dados_longo |&gt;\n  group_by(crop, software) |&gt;\n  summarise(\n    media_severidade = mean(severidade),\n    dp_severidade = sd(severidade)\n  ) |&gt;\n  filter(software == \"Assess\") |&gt;\n  ggplot(aes(x = crop, y = media_severidade, fill = crop)) +\n  geom_col() +\n  geom_point() +\n  geom_errorbar(\n    aes(\n      ymin = media_severidade - dp_severidade,\n      ymax = media_severidade + dp_severidade\n    ),\n    width = 0.1\n  ) +\n  theme_classic() +\n  theme(legend.position = \"none\")\n\n`summarise()` has regrouped the output.\nℹ Summaries were computed grouped by crop and software.\nℹ Output is grouped by crop.\nℹ Use `summarise(.groups = \"drop_last\")` to silence this message.\nℹ Use `summarise(.by = c(crop, software))` for per-operation grouping\n  (`?dplyr::dplyr_by`) instead.\n\nplot2\n\n\n\n\n\n\n\n\n\n\n\nNesta segunda versão, o filtro é aplicado antes do agrupamento, o que deixa o fluxo mais direto. Além disso, foi incluído na.rm = TRUE para ignorar valores ausentes.\n\nplot2 &lt;- dados_longo |&gt;\n  # Filtra primeiro apenas o software de interesse\n  filter(software == \"Assess\") |&gt;\n  \n  # Agrupa por cultura\n  group_by(crop) |&gt;\n  \n  # Calcula estatísticas-resumo\n  summarise(\n    media_severidade = mean(severidade, na.rm = TRUE),\n    dp_severidade = sd(severidade, na.rm = TRUE)\n  ) |&gt;\n  \n  # Constrói o gráfico com colunas e barras de erro\n  ggplot(aes(x = crop, y = media_severidade, fill = crop)) +\n  geom_col(alpha = 0.8) +\n  geom_errorbar(\n    aes(\n      ymin = media_severidade - dp_severidade,\n      ymax = media_severidade + dp_severidade\n    ),\n    width = 0.1\n  ) +\n  theme_minimal() +\n  theme(legend.position = \"none\") +\n  labs(\n    x = \"Cultura\",\n    y = \"Severidade média (%)\",\n    title = \"Severidade por cultura - software Assess\"\n  )\n\nplot2\n\n\n\n\n\n\n\n\n\n\n\n\nAgora vamos comparar diretamente os valores produzidos por diferentes softwares. Esse tipo de gráfico é útil para avaliar concordância, associação linear e possíveis desvios entre métodos.\n\n\n\n# LeafDoctor versus Assess\nld_as &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\")\n\n# ImageJ versus Assess\nij_as &lt;- software |&gt;\n  ggplot(aes(x = ImageJ, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\")\n\n# LeafDoctor versus ImageJ\nij_ld &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = ImageJ)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\")\n\n# Exibe os três gráficos lado a lado\nld_as + ij_as + ij_ld\n\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n\n\nWarning: Removed 1 row containing missing values or values outside the scale range\n(`geom_smooth()`).\n\n\n\n\n\n\n\n\n\nNesses gráficos:\n\ncada ponto representa uma observação;\na linha tracejada de inclinação 1 indica concordância perfeita entre os métodos;\na linha ajustada (geom_smooth(method = \"lm\")) mostra a tendência linear observada.\n\n\n\n\nAgora adicionamos o coeficiente de correlação de Pearson ao gráfico, usando stat_cor() do pacote ggpubr.\n\n# Carrega pacotes usados nesta etapa\nlibrary(ggplot2)\nlibrary(ggpubr)\n\n# Gráfico LeafDoctor vs Assess com correlação\nld_as &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\") +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  stat_cor(method = \"pearson\", label.x = 5, label.y = 95) +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  theme_minimal()\n\n# Gráfico ImageJ vs Assess com correlação\nij_as &lt;- software |&gt;\n  ggplot(aes(x = ImageJ, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\") +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  stat_cor(method = \"pearson\", label.x = 5, label.y = 95) +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  theme_minimal()\n\n# Gráfico LeafDoctor vs ImageJ com correlação\nij_ld &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = ImageJ)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\") +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  stat_cor(method = \"pearson\", label.x = 5, label.y = 95) +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  theme_minimal()\n\n# Exibe os gráficos em painel\nld_as + ij_as + ij_ld\n\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n\n\nWarning: Removed 1 row containing missing values or values outside the scale range\n(`geom_smooth()`).\n\n\n\n\n\n\n\n\n\n\n\n\n\nEste código ilustra um fluxo bastante comum em análise de dados:\n\nimportar dados de diferentes fontes;\ninspecionar a estrutura dos objetos;\nreorganizar a base para facilitar análise e visualização;\nfiltrar e selecionar subconjuntos de interesse;\nresumir estatisticamente os dados;\nconstruir gráficos exploratórios e comparativos.\n\nEm uma análise real, seria recomendável também:\n\nverificar valores ausentes;\nchecar nomes e classes das variáveis;\npadronizar escalas e unidades;\nsalvar objetos processados quando necessário;\ncomentar o código de forma que ele possa ser entendido futuramente."
+  },
+  {
+    "objectID": "SITE/aula 2.html#importar-arquivos-locais",
+    "href": "SITE/aula 2.html#importar-arquivos-locais",
+    "title": "Aula",
+    "section": "",
+    "text": "Nesta primeira etapa, carregamos dados armazenados em diferentes formatos. Em análise de dados, é comum trabalhar com arquivos locais em Excel ou CSV, além de planilhas online.\n\n\nArquivos do Excel geralmente possuem uma ou mais abas. A função read_excel() permite indicar tanto o arquivo quanto a aba a ser importada.\n\n# Carrega o pacote readxl, usado para ler arquivos .xls e .xlsx\nlibrary(readxl)\n\n# Importa a aba \"coffee rust\" do arquivo Excel local\nmeudado &lt;- read_excel(\n  \"dados_diversos.xlsx\",\n  sheet = \"coffee rust\"\n)\n\n# Exibe o objeto importado\nmeudado\n\n# A tibble: 405 × 13\n    farm region zone       district      lon   lat altitude cultivar shade    \n   &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;      &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;    \n 1     1 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n 2     2 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n 3     3 SNNPR  Bench Maji Debub Bench  35.4  6.90     1434 Mixture  Mid shade\n 4     4 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n 5     5 SNNPR  Bench Maji Debub Bench  35.4  6.90     1400 Local    Sun      \n 6     6 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n 7     7 SNNPR  Bench Maji Debub Bench  35.4  6.90     1432 Mixture  Mid shade\n 8     8 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n 9     9 SNNPR  Bench Maji Debub Bench  35.4  6.89     1400 Local    Sun      \n10    10 SNNPR  Bench Maji Debub Bench  35.4  6.88     1342 Mixture  Mid shade\n# ℹ 395 more rows\n# ℹ 4 more variables: cropping_system &lt;chr&gt;, farm_management &lt;chr&gt;, inc &lt;dbl&gt;,\n#   sev2 &lt;dbl&gt;\n\n\n\n\n\nArquivos CSV são muito comuns por serem leves, simples e compatíveis com diferentes programas.\n\n# Carrega o tidyverse, que inclui readr, dplyr, ggplot2, tidyr etc.\nlibrary(tidyverse)\n\n── Attaching core tidyverse packages ──────────────────────── tidyverse 2.0.0 ──\n✔ dplyr     1.2.0     ✔ readr     2.2.0\n✔ forcats   1.0.1     ✔ stringr   1.6.0\n✔ ggplot2   4.0.2     ✔ tibble    3.3.1\n✔ lubridate 1.9.5     ✔ tidyr     1.3.2\n✔ purrr     1.2.1     \n── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──\n✖ dplyr::filter() masks stats::filter()\n✖ dplyr::lag()    masks stats::lag()\nℹ Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors\n\n# Importa um arquivo CSV local\nmeucsv &lt;- read_csv(\"experimento.csv\")\n\nRows: 192 Columns: 7\n── Column specification ────────────────────────────────────────────────────────\nDelimiter: \",\"\nchr (3): location, cultivar, treatment\ndbl (4): year, block, severity, yield_kg_ha\n\nℹ Use `spec()` to retrieve the full column specification for this data.\nℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.\n\n# Exibe os dados importados\nmeucsv\n\n# A tibble: 192 × 7\n    year location cultivar block treatment severity yield_kg_ha\n   &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;    &lt;dbl&gt; &lt;chr&gt;        &lt;dbl&gt;       &lt;dbl&gt;\n 1  2021 Vicosa   A            1 Control       41.1        3450\n 2  2021 Vicosa   A            1 Fungicide     20.4        3739\n 3  2021 Vicosa   A            2 Control       45.7        3607\n 4  2021 Vicosa   A            2 Fungicide     16.2        4099\n 5  2021 Vicosa   A            3 Control       40.2        3528\n 6  2021 Vicosa   A            3 Fungicide     15.5        3909\n 7  2021 Vicosa   A            4 Control       32.1        3652\n 8  2021 Vicosa   A            4 Fungicide     15.1        3937\n 9  2021 Vicosa   B            1 Control       29          3689\n10  2021 Vicosa   B            1 Fungicide     12.8        4067\n# ℹ 182 more rows\n\n\n\n\n\nQuando os dados estão na nuvem, podemos importar diretamente a partir de uma URL pública. Aqui foi usado o pacote gsheet.\n\n# Carrega o pacote gsheet para importar planilhas públicas do Google Sheets\nlibrary(gsheet)\n\n# Importa uma aba de uma planilha Google\nmeudadonuvem &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=1110310360#gid=1110310360\"\n)\n\n# Visualiza a tabela importada\nmeudadonuvem\n\n# A tibble: 30 × 3\n   trat            t   sev\n   &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;\n 1 Gotejamento     0   1.1\n 2 Gotejamento     7   3.7\n 3 Gotejamento    14  10.7\n 4 Gotejamento    21  11.6\n 5 Gotejamento    28  15.3\n 6 Gotejamento    35  18.1\n 7 Gotejamento    42  32.4\n 8 Gotejamento    49  35.4\n 9 Gotejamento    56  41.9\n10 Gotejamento    63  43.4\n# ℹ 20 more rows\n\n# Importa outra aba da mesma planilha, contendo dados de curvas\ncurve &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=1807247585#gid=1807247585\"\n)\n\n# Importa outra aba, com dados relacionados a magnésio\nmagnesio &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=983033137#gid=983033137\"\n)\n\n# Exibe os dados importados\nmagnesio\n\n# A tibble: 20 × 3\n   trat      rep  comp\n   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt;\n 1 Mg2         1   9  \n 2 Mg2         2  12.5\n 3 Mg2         3  10  \n 4 Mg2         4   8  \n 5 Mg2         5  13.2\n 6 Mg2         6  11  \n 7 Mg2         7  10.8\n 8 Mg2         8   9.5\n 9 Mg2         9  10.8\n10 Mg2        10  10.4\n11 control     1  13.7\n12 control     2  15.9\n13 control     3  15.7\n14 control     4  14.2\n15 control     5  15.9\n16 control     6  16.5\n17 control     7  18  \n18 control     8  14.4\n19 control     9  16.4\n20 control    10  16"
+  },
+  {
+    "objectID": "SITE/aula 2.html#dados-já-disponíveis-em-pacotes-ou-na-web",
+    "href": "SITE/aula 2.html#dados-já-disponíveis-em-pacotes-ou-na-web",
+    "title": "Aula",
+    "section": "",
+    "text": "Nem sempre precisamos começar de arquivos locais. Muitos pacotes já trazem bases internas úteis para ensino, teste e demonstração. Também podemos ler diretamente arquivos hospedados na web.\n\n# Carrega o pacote epifitter\nlibrary(epifitter)\n\n# Acessa um conjunto de dados interno do pacote\ndadopacote &lt;- epifitter::PowderyMildew\n\n# Examina a estrutura do objeto para entender tipos de variáveis e dimensões\nstr(dadopacote)\n\n'data.frame':   240 obs. of  5 variables:\n $ irrigation_type: Factor w/ 5 levels \"Drip\",\"Furrow\",..: 1 1 1 1 1 1 1 1 1 1 ...\n $ moisture       : Factor w/ 2 levels \"High moisture\",..: 1 1 1 1 1 1 1 1 1 1 ...\n $ block          : int  1 2 3 1 2 3 1 2 3 1 ...\n $ time           : int  0 0 0 7 7 7 14 14 14 21 ...\n $ sev            : num  0.011 0.011 0.011 0.034 0.04 0.036 0.114 0.109 0.097 0.126 ...\n\n# Lê um arquivo CSV diretamente de um repositório online\n# Esse procedimento é útil quando os dados estão no GitHub ou em outro servidor público\n# O arquivo é importado diretamente pela URL\n dadogh &lt;- read_csv(\n  \"https://raw.githubusercontent.com/emdelponte/paper-coffee-rust-Ethiopia/refs/heads/master/data/survey_clean.csv\"\n)\n\nRows: 405 Columns: 13\n── Column specification ────────────────────────────────────────────────────────\nDelimiter: \",\"\nchr (7): region, zone, district, cultivar, shade, cropping_system, farm_mana...\ndbl (6): farm, lon, lat, altitude, inc, sev2\n\nℹ Use `spec()` to retrieve the full column specification for this data.\nℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.\n\n# Visualiza as primeiras linhas\nhead(dadogh)\n\n# A tibble: 6 × 13\n   farm region zone       district      lon   lat altitude cultivar shade    \n  &lt;dbl&gt; &lt;chr&gt;  &lt;chr&gt;      &lt;chr&gt;       &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;    \n1     1 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n2     2 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n3     3 SNNPR  Bench Maji Debub Bench  35.4  6.90     1434 Mixture  Mid shade\n4     4 SNNPR  Bench Maji Debub Bench  35.4  6.90     1100 Local    Sun      \n5     5 SNNPR  Bench Maji Debub Bench  35.4  6.90     1400 Local    Sun      \n6     6 SNNPR  Bench Maji Debub Bench  35.4  6.90     1342 Mixture  Mid shade\n# ℹ 4 more variables: cropping_system &lt;chr&gt;, farm_management &lt;chr&gt;, inc &lt;dbl&gt;,\n#   sev2 &lt;dbl&gt;"
+  },
+  {
+    "objectID": "SITE/aula 2.html#transformar-dados-do-formato-largo-para-o-formato-longo",
+    "href": "SITE/aula 2.html#transformar-dados-do-formato-largo-para-o-formato-longo",
+    "title": "Aula",
+    "section": "",
+    "text": "Muitas análises e gráficos no ggplot2 funcionam melhor quando os dados estão no chamado formato longo.\nNo formato largo, cada método ou variável medida pode estar em uma coluna diferente. No formato longo, essas colunas são empilhadas em duas colunas principais:\n\numa coluna que identifica o grupo, método ou categoria;\noutra coluna que contém os valores observados.\n\n\n\n\n# Importa a planilha com dados de softwares de avaliação\nsoftware &lt;- gsheet2tbl(\n  \"https://docs.google.com/spreadsheets/d/1bq2N19DcZdtax2fQW9OHSGMR0X2__Z9T/edit?gid=373270992#gid=373270992\"\n)\n\n# Mostra a estrutura geral dos dados\n# glimpse() é útil para ver nomes de colunas, tipos e alguns valores\n glimpse(software)\n\nRows: 70\nColumns: 5\n$ crop       &lt;chr&gt; \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Rosa\", \"Ro…\n$ rep        &lt;dbl&gt; 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,…\n$ Assess     &lt;dbl&gt; 19.95, 4.77, 72.11, 81.37, 25.78, 80.45, 81.69, 7.02, 11.23…\n$ LeafDoctor &lt;dbl&gt; 31.55, 13.53, 77.59, 90.83, 24.54, 73.84, 86.78, 14.04, 16.…\n$ ImageJ     &lt;dbl&gt; 26.04, 5.16, 69.46, 82.68, 13.13, 69.90, 88.66, 6.40, 10.82…\n\n# Cria um objeto com nome mais genérico para facilitar a escrita posterior\n dados &lt;- software\n\n\n\n\nNeste exemplo, as colunas Assess, LeafDoctor e ImageJ representam medidas obtidas por diferentes softwares. Vamos empilhá-las em uma única coluna de valores.\n\n# Converte os dados do formato largo para o formato longo\n# cols: colunas que serão empilhadas\n# names_to: nome da nova coluna que guardará o nome do software\n# values_to: nome da nova coluna que guardará os valores de severidade\n dados_longo &lt;- dados |&gt;\n  pivot_longer(\n    cols = c(Assess, LeafDoctor, ImageJ),\n    names_to = \"software\",\n    values_to = \"severidade\"\n  )\n\n# Exibe o resultado\n dados_longo\n\n# A tibble: 210 × 4\n   crop    rep software   severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;           &lt;dbl&gt;\n 1 Rosa     21 Assess          20.0 \n 2 Rosa     21 LeafDoctor      31.6 \n 3 Rosa     21 ImageJ          26.0 \n 4 Rosa     22 Assess           4.77\n 5 Rosa     22 LeafDoctor      13.5 \n 6 Rosa     22 ImageJ           5.16\n 7 Rosa     23 Assess          72.1 \n 8 Rosa     23 LeafDoctor      77.6 \n 9 Rosa     23 ImageJ          69.5 \n10 Rosa     24 Assess          81.4 \n# ℹ 200 more rows\n\n\n\n\n\nUma vez no formato longo, fica muito mais simples comparar grupos usando ggplot2.\n\n dados_longo |&gt;\n  ggplot(aes(x = software, y = severidade, color = software)) +\n  geom_boxplot(outlier.colour = NA) +\n  geom_jitter(\n    width = 0.1,\n    alpha = 0.3\n  ) +\n  theme_minimal() +\n  theme(legend.position = \"none\") +\n  facet_wrap(~ crop)\n\n\n\n\n\n\n\n\nNeste gráfico:\n\ngeom_boxplot() resume a distribuição dos dados;\ngeom_jitter() mostra os pontos individuais, evitando sobreposição excessiva;\nfacet_wrap(~ crop) separa os gráficos por cultura."
+  },
+  {
+    "objectID": "SITE/aula 2.html#verbos-do-dplyr-selecionar-e-filtrar",
+    "href": "SITE/aula 2.html#verbos-do-dplyr-selecionar-e-filtrar",
+    "title": "Aula",
+    "section": "",
+    "text": "Agora vamos praticar dois verbos muito importantes do dplyr:\n\nselect(): escolhe colunas;\nfilter(): escolhe linhas com base em uma condição.\n\n\n# Seleciona apenas três colunas do objeto original\nAssess &lt;- software |&gt;\n  select(crop, rep, Assess)\nAssess\n\n# A tibble: 70 × 3\n   crop    rep Assess\n   &lt;chr&gt; &lt;dbl&gt;  &lt;dbl&gt;\n 1 Rosa     21  20.0 \n 2 Rosa     22   4.77\n 3 Rosa     23  72.1 \n 4 Rosa     24  81.4 \n 5 Rosa     25  25.8 \n 6 Rosa     26  80.4 \n 7 Rosa     27  81.7 \n 8 Rosa     28   7.02\n 9 Rosa     29  11.2 \n10 Rosa     30  79.1 \n# ℹ 60 more rows\n\n# Filtra no objeto longo apenas as observações do software Assess\nAssess2 &lt;- dados_longo |&gt;\n  filter(software == \"Assess\")\nAssess2\n\n# A tibble: 70 × 4\n   crop    rep software severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;         &lt;dbl&gt;\n 1 Rosa     21 Assess        20.0 \n 2 Rosa     22 Assess         4.77\n 3 Rosa     23 Assess        72.1 \n 4 Rosa     24 Assess        81.4 \n 5 Rosa     25 Assess        25.8 \n 6 Rosa     26 Assess        80.4 \n 7 Rosa     27 Assess        81.7 \n 8 Rosa     28 Assess         7.02\n 9 Rosa     29 Assess        11.2 \n10 Rosa     30 Assess        79.1 \n# ℹ 60 more rows\n\n# Filtra apenas observações do ImageJ\nImageJ &lt;- dados_longo |&gt;\n  filter(software == \"ImageJ\")\nImageJ\n\n# A tibble: 70 × 4\n   crop    rep software severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;         &lt;dbl&gt;\n 1 Rosa     21 ImageJ        26.0 \n 2 Rosa     22 ImageJ         5.16\n 3 Rosa     23 ImageJ        69.5 \n 4 Rosa     24 ImageJ        82.7 \n 5 Rosa     25 ImageJ        13.1 \n 6 Rosa     26 ImageJ        69.9 \n 7 Rosa     27 ImageJ        88.7 \n 8 Rosa     28 ImageJ         6.4 \n 9 Rosa     29 ImageJ        10.8 \n10 Rosa     30 ImageJ        78.2 \n# ℹ 60 more rows\n\n# Filtra apenas observações do LeafDoctor\nLeafDoctor &lt;- dados_longo |&gt;\n  filter(software == \"LeafDoctor\")\nLeafDoctor\n\n# A tibble: 70 × 4\n   crop    rep software   severidade\n   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;           &lt;dbl&gt;\n 1 Rosa     21 LeafDoctor       31.6\n 2 Rosa     22 LeafDoctor       13.5\n 3 Rosa     23 LeafDoctor       77.6\n 4 Rosa     24 LeafDoctor       90.8\n 5 Rosa     25 LeafDoctor       24.5\n 6 Rosa     26 LeafDoctor       73.8\n 7 Rosa     27 LeafDoctor       86.8\n 8 Rosa     28 LeafDoctor       14.0\n 9 Rosa     29 LeafDoctor       16.0\n10 Rosa     30 LeafDoctor       77.0\n# ℹ 60 more rows"
+  },
+  {
+    "objectID": "SITE/aula 2.html#gráficos-comparativos-por-software",
+    "href": "SITE/aula 2.html#gráficos-comparativos-por-software",
+    "title": "Aula",
+    "section": "",
+    "text": "Após filtrar os dados por software, podemos construir gráficos separados e depois combiná-los em um painel.\n\n# Gráfico para Assess\np_A &lt;- Assess2 |&gt;\n  ggplot(aes(x = crop, y = severidade, color = crop)) +\n  geom_jitter(width = 0.1) +\n  labs(title = \"Assess\")\n\n# Gráfico para LeafDoctor\np_ld &lt;- LeafDoctor |&gt;\n  ggplot(aes(x = crop, y = severidade, color = crop)) +\n  geom_jitter(width = 0.1) +\n  labs(title = \"LeafDoctor\")\n\np_ld\n\n\n\n\n\n\n\n# Gráfico para ImageJ\np_ij &lt;- ImageJ |&gt;\n  ggplot(aes(x = crop, y = severidade, color = crop)) +\n  geom_jitter(width = 0.1) +\n  labs(title = \"ImageJ\")\n\np_ij\n\n\n\n\n\n\n\n# Carrega o patchwork para combinar múltiplos gráficos\nlibrary(patchwork)\n\n# Combina os gráficos em um arranjo de painel\n((p_ld | p_ij) / p_A) +\n  plot_annotation(tag_levels = \"A\") +\n  plot_layout(guides = \"collect\") &\n  theme(legend.position = \"bottom\")\n\n\n\n\n\n\n\n# Salva o gráfico em arquivo PNG\n# bg = \"white\" evita fundo transparente em alguns casos\n ggsave(\"plot1.png\", width = 5, height = 5, bg = \"white\")"
+  },
+  {
+    "objectID": "SITE/aula 2.html#resumir-e-agrupar-dados",
+    "href": "SITE/aula 2.html#resumir-e-agrupar-dados",
+    "title": "Aula",
+    "section": "",
+    "text": "Além de visualizar dados brutos, é importante calcular estatísticas-resumo, como média e desvio-padrão.\n\n\n\n# Média geral da severidade\nmean(dados_longo$severidade)\n\n[1] 19.6189\n\n# Desvio-padrão geral da severidade\nsd(dados_longo$severidade)\n\n[1] 23.84137\n\n\n\n\n\nAqui agrupamos os dados por crop e software, calculamos média e desvio-padrão, e depois filtramos apenas o software Assess.\n\nplot2 &lt;- dados_longo |&gt;\n  group_by(crop, software) |&gt;\n  summarise(\n    media_severidade = mean(severidade),\n    dp_severidade = sd(severidade)\n  ) |&gt;\n  filter(software == \"Assess\") |&gt;\n  ggplot(aes(x = crop, y = media_severidade, fill = crop)) +\n  geom_col() +\n  geom_point() +\n  geom_errorbar(\n    aes(\n      ymin = media_severidade - dp_severidade,\n      ymax = media_severidade + dp_severidade\n    ),\n    width = 0.1\n  ) +\n  theme_classic() +\n  theme(legend.position = \"none\")\n\n`summarise()` has regrouped the output.\nℹ Summaries were computed grouped by crop and software.\nℹ Output is grouped by crop.\nℹ Use `summarise(.groups = \"drop_last\")` to silence this message.\nℹ Use `summarise(.by = c(crop, software))` for per-operation grouping\n  (`?dplyr::dplyr_by`) instead.\n\nplot2\n\n\n\n\n\n\n\n\n\n\n\nNesta segunda versão, o filtro é aplicado antes do agrupamento, o que deixa o fluxo mais direto. Além disso, foi incluído na.rm = TRUE para ignorar valores ausentes.\n\nplot2 &lt;- dados_longo |&gt;\n  # Filtra primeiro apenas o software de interesse\n  filter(software == \"Assess\") |&gt;\n  \n  # Agrupa por cultura\n  group_by(crop) |&gt;\n  \n  # Calcula estatísticas-resumo\n  summarise(\n    media_severidade = mean(severidade, na.rm = TRUE),\n    dp_severidade = sd(severidade, na.rm = TRUE)\n  ) |&gt;\n  \n  # Constrói o gráfico com colunas e barras de erro\n  ggplot(aes(x = crop, y = media_severidade, fill = crop)) +\n  geom_col(alpha = 0.8) +\n  geom_errorbar(\n    aes(\n      ymin = media_severidade - dp_severidade,\n      ymax = media_severidade + dp_severidade\n    ),\n    width = 0.1\n  ) +\n  theme_minimal() +\n  theme(legend.position = \"none\") +\n  labs(\n    x = \"Cultura\",\n    y = \"Severidade média (%)\",\n    title = \"Severidade por cultura - software Assess\"\n  )\n\nplot2"
+  },
+  {
+    "objectID": "SITE/aula 2.html#gráficos-de-relação-entre-variáveis",
+    "href": "SITE/aula 2.html#gráficos-de-relação-entre-variáveis",
+    "title": "Aula",
+    "section": "",
+    "text": "Agora vamos comparar diretamente os valores produzidos por diferentes softwares. Esse tipo de gráfico é útil para avaliar concordância, associação linear e possíveis desvios entre métodos.\n\n\n\n# LeafDoctor versus Assess\nld_as &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\")\n\n# ImageJ versus Assess\nij_as &lt;- software |&gt;\n  ggplot(aes(x = ImageJ, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\")\n\n# LeafDoctor versus ImageJ\nij_ld &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = ImageJ)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\")\n\n# Exibe os três gráficos lado a lado\nld_as + ij_as + ij_ld\n\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n\n\nWarning: Removed 1 row containing missing values or values outside the scale range\n(`geom_smooth()`).\n\n\n\n\n\n\n\n\n\nNesses gráficos:\n\ncada ponto representa uma observação;\na linha tracejada de inclinação 1 indica concordância perfeita entre os métodos;\na linha ajustada (geom_smooth(method = \"lm\")) mostra a tendência linear observada.\n\n\n\n\nAgora adicionamos o coeficiente de correlação de Pearson ao gráfico, usando stat_cor() do pacote ggpubr.\n\n# Carrega pacotes usados nesta etapa\nlibrary(ggplot2)\nlibrary(ggpubr)\n\n# Gráfico LeafDoctor vs Assess com correlação\nld_as &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\") +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  stat_cor(method = \"pearson\", label.x = 5, label.y = 95) +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  theme_minimal()\n\n# Gráfico ImageJ vs Assess com correlação\nij_as &lt;- software |&gt;\n  ggplot(aes(x = ImageJ, y = Assess)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\") +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  stat_cor(method = \"pearson\", label.x = 5, label.y = 95) +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  theme_minimal()\n\n# Gráfico LeafDoctor vs ImageJ com correlação\nij_ld &lt;- software |&gt;\n  ggplot(aes(x = LeafDoctor, y = ImageJ)) +\n  geom_point(size = 2, color = \"darkorange\") +\n  geom_smooth(method = \"lm\", se = FALSE, color = \"black\") +\n  geom_abline(intercept = 0, slope = 1, linetype = 2) +\n  stat_cor(method = \"pearson\", label.x = 5, label.y = 95) +\n  ylim(0, 100) +\n  xlim(0, 100) +\n  theme_minimal()\n\n# Exibe os gráficos em painel\nld_as + ij_as + ij_ld\n\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n`geom_smooth()` using formula = 'y ~ x'\n\n\nWarning: Removed 1 row containing missing values or values outside the scale range\n(`geom_smooth()`)."
+  },
+  {
+    "objectID": "SITE/aula 2.html#observações-finais-sobre-o-fluxo-de-análise",
+    "href": "SITE/aula 2.html#observações-finais-sobre-o-fluxo-de-análise",
+    "title": "Aula",
+    "section": "",
+    "text": "Este código ilustra um fluxo bastante comum em análise de dados:\n\nimportar dados de diferentes fontes;\ninspecionar a estrutura dos objetos;\nreorganizar a base para facilitar análise e visualização;\nfiltrar e selecionar subconjuntos de interesse;\nresumir estatisticamente os dados;\nconstruir gráficos exploratórios e comparativos.\n\nEm uma análise real, seria recomendável também:\n\nverificar valores ausentes;\nchecar nomes e classes das variáveis;\npadronizar escalas e unidades;\nsalvar objetos processados quando necessário;\ncomentar o código de forma que ele possa ser entendido futuramente."
+  },
+  {
+    "objectID": "SITE/about.html",
+    "href": "SITE/about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "aula 8.html",
+    "href": "aula 8.html",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "",
+    "text": "Nesta aula, o foco é a análise de variáveis quantitativas contínuas tanto como variável resposta quanto como variável explicativa (fator contínuo). Estudaremos: 1. Regressão Linear Simples: Relação linear constante (causa e efeito) entre uma variável preditora (ex: dose) e uma resposta (ex: rendimento). 2. Regressão Polinomial: Relação não-linear (curvilínea), muito comum em curvas de resposta a diferentes doses para encontrar o ponto de máxima eficiência. 3. Análise Conjunta de Experimentos: Uso de modelos mistos para compilar os resultados de diferentes ensaios ou anos de experimentação, gerando uma inferência global única."
+  },
+  {
+    "objectID": "aula 8.html#criando-dados-simulados",
+    "href": "aula 8.html#criando-dados-simulados",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "1.1 Criando dados simulados",
+    "text": "1.1 Criando dados simulados\n\nlibrary(tidyverse)\n\n# Simulando um conjunto de dados simples para doses fixas\nx &lt;- seq(0, 150, by = 25)\ny &lt;- c(8.6, 8.9, 9.5, 9.9, 10, 10.2, 10.5)\ndf &lt;- data.frame(x = x, y = y)\n\n# Visualização da dispersão dos pontos e sobreposição da reta de regressão\nlibrary(ggplot2)\nggplot(df, aes(x, y)) +\n  geom_point(size = 4, color = \"red\") +\n  # Adiciona a reta de regressão sem a faixa de intervalo de confiança (se = FALSE)\n  geom_smooth(se = FALSE, method = \"lm\", color = \"black\") +\n  scale_x_continuous(breaks = x) +\n  theme_classic() +\n  labs(x = \"Dose de N (kg/ha)\",\n       y = \"Rendimento de grãos (t/ha)\",\n       title = \"Regressão Linear Simples\")"
+  },
+  {
+    "objectID": "aula 8.html#ajuste-do-modelo-linear-no-r",
+    "href": "aula 8.html#ajuste-do-modelo-linear-no-r",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "1.2 Ajuste do Modelo Linear no R",
+    "text": "1.2 Ajuste do Modelo Linear no R\nO R utiliza a função base lm (Linear Model) para estimar os parâmetros da regressão via mínimos quadrados.\n\n# Ajustando o modelo: y explicado por x\nm1 &lt;- lm(y ~ x, data = df)\n\n# Resumo do modelo (mostra estimativa dos coeficientes, R-quadrado e p-valores)\nsummary(m1)\n\n\nCall:\nlm(formula = y ~ x, data = df)\n\nResiduals:\n       1        2        3        4        5        6        7 \n-0.11429 -0.12857  0.15714  0.24286  0.02857 -0.08571 -0.10000 \n\nCoefficients:\n            Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept) 8.714286   0.110472   78.88  6.2e-09 ***\nx           0.012571   0.001226   10.26 0.000151 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 0.1621 on 5 degrees of freedom\nMultiple R-squared:  0.9546,    Adjusted R-squared:  0.9456 \nF-statistic: 105.2 on 1 and 5 DF,  p-value: 0.0001513\n\n# Usando os coeficientes da equação para prever o valor de y para uma dose arbitrária de x (ex: 55 kg/ha)\nx_novo &lt;- 55\ny_pred &lt;- m1$coefficients[1] + (m1$coefficients[2] * x_novo)\ny_pred\n\n(Intercept) \n   9.405714 \n\n\n\nTeoria Estatística: O p-valor associado a \\(X\\) no quadro do summary indica se a inclinação da reta é estatisticamente diferente de zero (se o aumento em \\(X\\) afeta o \\(Y\\)). O parâmetro Multiple R-squared (\\(R^2\\)) informa a qualidade do ajuste, ou seja, qual a proporção da variabilidade de \\(Y\\) que é explicada matematicamente pelo eixo \\(X\\).\n\nPodemos extrair os valores que a reta “acertou” perfeitamente para aquele dataset (preditos) e o que sobrou fora da reta (os resíduos).\n\n# Calculando valores preditos e os resíduos do modelo m1\npred &lt;- df |&gt; \n  mutate(predito = predict(m1),\n         residual = y - predito)\npred\n\n    x    y   predito    residual\n1   0  8.6  8.714286 -0.11428571\n2  25  8.9  9.028571 -0.12857143\n3  50  9.5  9.342857  0.15714286\n4  75  9.9  9.657143  0.24285714\n5 100 10.0  9.971429  0.02857143\n6 125 10.2 10.285714 -0.08571429\n7 150 10.5 10.600000 -0.10000000"
+  },
+  {
+    "objectID": "aula 8.html#regressão-de-dados-reais-externos",
+    "href": "aula 8.html#regressão-de-dados-reais-externos",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "1.3 Regressão de Dados Reais Externos",
+    "text": "1.3 Regressão de Dados Reais Externos\nVamos aplicar o mesmo conceito a um grande conjunto de dados lido da web.\n\nlibrary(rio)\n\n# Importa os dados direto do link\nurl &lt;- \"https://bit.ly/df_biostat\"\ndf_reg &lt;- import(url, sheet = \"REG_DEL_DATA\", setclass = \"tbl\")\n\n# Gráfico com anotação explícita da equação da reta estimada\ndf_reg |&gt; \n  ggplot(aes(DOSEN, RG)) +\n  geom_point(alpha = 0.5) +\n  geom_smooth(se = FALSE, method = \"lm\", color = \"blue\") +\n  # Usar texto manualmente escrito no gráfico após estimar o modelo\n  annotate(geom = \"text\", x = 15, y = 10.5, label = \"y = 8.43 + 0.0242*x\") +\n  theme_classic()\n\n\n\n\n\n\n\n# Ajuste e Análise do modelo m2\nm2 &lt;- lm(RG ~ DOSEN, data = df_reg)\nanova(m2) # Testa a redução da variância através do quadro da ANOVA\n\nAnalysis of Variance Table\n\nResponse: RG\n          Df  Sum Sq Mean Sq F value    Pr(&gt;F)    \nDOSEN      1 14.6676 14.6676  359.44 2.419e-13 ***\nResiduals 18  0.7345  0.0408                      \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nsummary(m2) # Mostra os valores paramétricos exatos (Intercept = 8.43 e DOSEN = 0.0242)\n\n\nCall:\nlm(formula = RG ~ DOSEN, data = df_reg)\n\nResiduals:\n     Min       1Q   Median       3Q      Max \n-0.24520 -0.14343 -0.03798  0.08990  0.36680 \n\nCoefficients:\n            Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept) 8.434550   0.078238  107.81  &lt; 2e-16 ***\nDOSEN       0.024222   0.001278   18.96 2.42e-13 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 0.202 on 18 degrees of freedom\nMultiple R-squared:  0.9523,    Adjusted R-squared:  0.9497 \nF-statistic: 359.4 on 1 and 18 DF,  p-value: 2.419e-13"
+  },
+  {
+    "objectID": "aula 8.html#ajuste-linear-vs-quadrático",
+    "href": "aula 8.html#ajuste-linear-vs-quadrático",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "2.1 Ajuste Linear vs Quadrático",
+    "text": "2.1 Ajuste Linear vs Quadrático\n\n# Criando novos dados simulados com quebra de rendimento nas doses mais altas\nDOSEN &lt;- c(0, 50, 100, 150, 200, 250)\nRG    &lt;- c(7.1, 7.3, 7.66, 7.71, 7.62, 7.6)\ndf2 &lt;- data.frame(DOSEN = DOSEN, RG = RG)\n\n# Comparando os Modelos\nm3_linear &lt;- lm(RG ~ DOSEN, data = df2)\n\n# poly(x, 2) indica grau do polinômio, raw = TRUE expõe os coeficientes não ortogonais naturais\nm4_quadrat &lt;- lm(RG ~ poly(DOSEN, 2, raw = TRUE), data = df2)\n\nsummary(m3_linear)\n\n\nCall:\nlm(formula = RG ~ DOSEN, data = df2)\n\nResiduals:\n       1        2        3        4        5        6 \n-0.14762 -0.04790  0.21181  0.16152 -0.02876 -0.14905 \n\nCoefficients:\n             Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept) 7.2476190  0.1243507  58.284 5.19e-07 ***\nDOSEN       0.0020057  0.0008214   2.442   0.0711 .  \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 0.1718 on 4 degrees of freedom\nMultiple R-squared:  0.5985,    Adjusted R-squared:  0.4981 \nF-statistic: 5.962 on 1 and 4 DF,  p-value: 0.07108\n\nsummary(m4_quadrat)\n\n\nCall:\nlm(formula = RG ~ poly(DOSEN, 2, raw = TRUE), data = df2)\n\nResiduals:\n       1        2        3        4        5        6 \n 0.02500 -0.08243  0.07371  0.02343 -0.06329  0.02357 \n\nCoefficients:\n                              Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept)                  7.075e+00  7.013e-02 100.882 2.15e-06 ***\npoly(DOSEN, 2, raw = TRUE)1  7.184e-03  1.319e-03   5.445   0.0122 *  \npoly(DOSEN, 2, raw = TRUE)2 -2.071e-05  5.066e-06  -4.089   0.0264 *  \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 0.07738 on 3 degrees of freedom\nMultiple R-squared:  0.9389,    Adjusted R-squared:  0.8982 \nF-statistic: 23.06 on 2 and 3 DF,  p-value: 0.0151\n\n\n\nTeoria Estatística: Quando avaliamos o modelo quadrático, olhamos para a significância do termo poly(DOSEN, 2). Se o p-valor for significativo, indica que a inserção da parábola melhorou a precisão da predição frente a uma simples reta."
+  },
+  {
+    "objectID": "aula 8.html#derivando-a-dose-máxima",
+    "href": "aula 8.html#derivando-a-dose-máxima",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "2.2 Derivando a Dose Máxima",
+    "text": "2.2 Derivando a Dose Máxima\nAtravés do cálculo (primeira derivada igualada a zero), o ponto de cume/vértice de uma parábola ocorre em \\(X = -b / (2c)\\). Onde \\(b\\) é o termo linear e \\(c\\) é o termo quadrático.\n\n# A extração do summary fornece: [1] Intercepto, [2] Termo linear, [3] Termo quadrático\nb &lt;- coef(m4_quadrat)[2]\na &lt;- coef(m4_quadrat)[3] # É o nosso c (termo elevado ao quadrado)\n\n# Cálculo matemático do ponto de flexão da curva (Dose Máxima)\ndose_max &lt;- -b / (2 * a)\ndose_max \n\npoly(DOSEN, 2, raw = TRUE)1 \n                   173.4138 \n\n# Gráfico da curva quadrática explicitando visualmente o ponto de eficiência agronômica\ndf2 |&gt;\n  ggplot(aes(DOSEN, RG)) +\n  geom_point(size = 3) +\n  geom_smooth(method = \"lm\", se = FALSE, formula = y ~ poly(x, 2), color = \"darkgreen\") +\n  geom_vline(xintercept = dose_max, linetype = \"dashed\", color = \"red\") +\n  theme_classic() +\n  labs(title = paste(\"A Dose Máxima Econômica/Técnica foi de:\", round(dose_max, 2), \"kg/ha\"),\n       x = \"Dose\", y = \"Rendimento (RG)\")"
+  },
+  {
+    "objectID": "aula 8.html#visualização-da-consistência-entre-experimentos",
+    "href": "aula 8.html#visualização-da-consistência-entre-experimentos",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "3.1 Visualização da Consistência entre Experimentos",
+    "text": "3.1 Visualização da Consistência entre Experimentos\nO conjunto de dados estande avalia como o estande de plantas reage a incidência do fungo nas sementes em 3 experimentos sucessivos.\n\nlibrary(readxl)\nestande &lt;- read_excel(\"dados_diversos.xlsx\", \"estande\")\n\n# Plot das observações por experimento\nestande |&gt; \n  ggplot(aes(trat, nplants, group = exp)) +\n  geom_point(color = \"gray\", alpha = 0.6) +\n  \n  # A reta teórica principal/média que queremos encontrar\n  geom_abline(intercept = 69.74, slope = -0.56, linewidth = 1.5, color = \"black\") +\n  \n  # As retas regressivas particulares de cada ensaio/experimento\n  geom_smooth(method = \"lm\", se = FALSE, color = \"darkred\", linetype = \"dashed\", size = 0.8) +\n  theme_classic() +\n  labs(x = \"Incidência de fungo na semente (%)\",\n       y = \"Estande de plantas\",\n       title = \"Comportamento Global vs Experimentos Individuais\")"
+  },
+  {
+    "objectID": "aula 8.html#a-abordagem-analítica-modelos-mistos-vs-regressão-simples",
+    "href": "aula 8.html#a-abordagem-analítica-modelos-mistos-vs-regressão-simples",
+    "title": "Aula 8 - Regressão Linear, Polinomial e Análise Conjunta de Experimentos",
+    "section": "3.2 A Abordagem Analítica (Modelos Mistos vs Regressão Simples)",
+    "text": "3.2 A Abordagem Analítica (Modelos Mistos vs Regressão Simples)\nMuitas vezes, a abordagem clássica forçaria a realização de uma transformação para estabilização da variância individual, mas ela não aproveita o peso inferencial de todos os dados somados.\n\nlibrary(DHARMa)\n\n# Exemplo: Rodando a regressão para UM ensaio isolado com transformação em raiz quadrada\nexp1 &lt;- estande |&gt; filter(exp == 1)\nm11 &lt;- lm(sqrt(nplants) ~ trat + bloco, data = exp1)\n\n# Simula e plota os resíduos para avaliação se o modelo serviu bem\nplot(simulateResiduals(m11))\n\n\n\n\n\n\n\n\nA Modelagem Mista (lmer) absorve o experimento e o bloco como efeitos inerentemente instáveis (aleatórios), focando em uma predição unificada para o Fator Principal (o tratamento numérico quantitativo).\n\nlibrary(lme4)\nlibrary(car)\n\n# Ajuste do Modelo Misto: \n# (nplants ~ trat) Fixo\n# (1 | exp/bloco) Variância do intercepto aleatória para 'bloco' agrupado dentro de 'experimento'\nm_mix &lt;- lmer(nplants ~ trat + (1 | exp/bloco), data = estande)\n\n# Tabela completa de componentes de variância\nsummary(m_mix)\n\nLinear mixed model fit by REML ['lmerMod']\nFormula: nplants ~ trat + (1 | exp/bloco)\n   Data: estande\n\nREML criterion at convergence: 575.8\n\nScaled residuals: \n     Min       1Q   Median       3Q      Max \n-2.21697 -0.63351  0.04292  0.67094  1.92907 \n\nRandom effects:\n Groups    Name        Variance Std.Dev.\n bloco:exp (Intercept)  54.76    7.40   \n exp       (Intercept) 377.43   19.43   \n Residual              134.99   11.62   \nNumber of obs: 72, groups:  bloco:exp, 12; exp, 3\n\nFixed effects:\n            Estimate Std. Error t value\n(Intercept) 69.74524   11.57191   6.027\ntrat        -0.56869    0.08314  -6.840\n\nCorrelation of Fixed Effects:\n     (Intr)\ntrat -0.111\n\n# Tabela ANOVA para avaliar a significância p-valor global da covariável \"trat\"\nAnova(m_mix)\n\nAnalysis of Deviance Table (Type II Wald chisquare tests)\n\nResponse: nplants\n      Chisq Df Pr(&gt;Chisq)    \ntrat 46.788  1  7.909e-12 ***\n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\n# Diagnóstico de Resíduos via DHARMa do Modelo Global\nplot(simulateResiduals(m_mix))\n\n\n\n\n\n\n\n\n\nInterpretação Conclusiva da Análise Conjunta: A redução linear no estande frente ao incremento da doença é uma verdade estatística consistente globalmente p-valor de trat no quadro ANOVA, independente de qual o grau severidade daquele ano experimental, devido ao fato do erro/variância de ambiente ser completamente absorvido na camada aleatória (Random effects). ```"
+  },
+  {
+    "objectID": "aula 6.html",
+    "href": "aula 6.html",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "",
+    "text": "Nesta aula, abordaremos diferentes análises estatísticas comuns na fitopatologia: 1. Experimentos Fatoriais: Avaliação de dois ou mais fatores simultaneamente (ex: fungicida e dose) e a interação entre eles. 2. Delineamento em Blocos Casualizados (DBC): Controle de variação local no campo, isolando o efeito da heterogeneidade da área. 3. Análise de Correlação: Medida do grau de associação entre duas variáveis numéricas contínuas."
+  },
+  {
+    "objectID": "aula 6.html#carregamento-e-preparação-dos-dados",
+    "href": "aula 6.html#carregamento-e-preparação-dos-dados",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "1.1 Carregamento e Preparação dos Dados",
+    "text": "1.1 Carregamento e Preparação dos Dados\nNeste primeiro conjunto de dados (fungicida_vaso), avaliaremos o efeito de tratamentos fungicidas (treat) e diferentes doses (dose) sobre a severidade de uma doença. Para análise fatorial, ambos os fatores devem ser analisados como variáveis categóricas (fatores).\n\nlibrary(tidyverse)\nlibrary(readxl)\n\n# Carrega os dados da aba \"fungicida_vaso\"\nfungicidas &lt;- read_excel(\"dados_diversos.xlsx\", \"fungicida_vaso\")\n\n# Preparação dos dados: calcula a incidência e converte 'dose' e 'treat' para fator\nfungicidas2 &lt;- fungicidas |&gt; \n  mutate(incidencia = inf_seeds / n_seeds,\n         dose = factor(dose),\n         treat = factor(treat))"
+  },
+  {
+    "objectID": "aula 6.html#visualização-exploratória-dos-dados",
+    "href": "aula 6.html#visualização-exploratória-dos-dados",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "1.2 Visualização Exploratória dos Dados",
+    "text": "1.2 Visualização Exploratória dos Dados\nAntes de ajustar o modelo, é fundamental visualizar os dados para entender a distribuição da severidade e como os fatores interagem. O interaction.plot nos dá uma ideia visual se há interação (retas não paralelas indicam possível interação entre os fatores).\n\n# Gráfico de dispersão por tratamento e dose\nfungicidas2 |&gt; \n  ggplot(aes(treat, severity, colour = dose)) +\n  geom_jitter(width = 0.1) +\n  facet_wrap(~dose) +\n  theme_classic() +\n  labs(x = \"Tratamento\", y = \"Severidade\", color = \"Dose\") +\n  theme(legend.position = \"bottom\")\n\n\n\n\n\n\n\n# Gráfico de interação\ninteraction.plot(x.factor = fungicidas2$treat,\n                 trace.factor = fungicidas2$dose, \n                 response = fungicidas2$severity,\n                 type = \"b\", pch = 19, fixed = TRUE,\n                 xlab = \"Tratamento\", ylab = \"Severidade Média\",\n                 trace.label = \"Dose\")"
+  },
+  {
+    "objectID": "aula 6.html#modelagem-estatística-anova-fatorial",
+    "href": "aula 6.html#modelagem-estatística-anova-fatorial",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "1.3 Modelagem Estatística: ANOVA Fatorial",
+    "text": "1.3 Modelagem Estatística: ANOVA Fatorial\nA Análise de Variância (ANOVA) testa se as médias dos grupos diferem significativamente. Em um fatorial, testamos três hipóteses: o efeito principal do Fator A (tratamento), o efeito do Fator B (dose) e a Interação A x B.\n\nm1 e m2: Modelos simples (apenas para fins didáticos).\nm3: Modelo completo com a interação (treat * dose).\n\n\n# Modelos avaliando os fatores isoladamente\nm1 &lt;- lm(severity ~ treat, data = fungicidas2)\nm2 &lt;- lm(severity ~ dose, data = fungicidas2)\n\n# Modelo Fatorial (Tratamento, Dose e Interação)\nm3 &lt;- lm(severity ~ treat * dose, data = fungicidas2)\nanova(m3)\n\nAnalysis of Variance Table\n\nResponse: severity\n           Df   Sum Sq  Mean Sq F value    Pr(&gt;F)    \ntreat       1 0.113232 0.113232  30.358 4.754e-05 ***\ndose        1 0.073683 0.073683  19.755 0.0004077 ***\ntreat:dose  1 0.072739 0.072739  19.502 0.0004326 ***\nResiduals  16 0.059678 0.003730                      \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\n\n\nTeoria Estatística - Interação: Se o p-valor da interação (treat:dose) for significativo (geralmente p &lt; 0.05), significa que o efeito do fungicida depende da dose aplicada. Sendo assim, o desdobramento (comparação de médias) deve ser feito avaliando um fator dentro dos níveis do outro."
+  },
+  {
+    "objectID": "aula 6.html#premissas-da-anova",
+    "href": "aula 6.html#premissas-da-anova",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "1.4 Premissas da ANOVA",
+    "text": "1.4 Premissas da ANOVA\nPara que a ANOVA seja válida, os resíduos do modelo precisam apresentar distribuição normal e homogeneidade de variâncias (homocedasticidade). Utilizamos o pacote DHARMa para essa verificação de forma visual e robusta.\n\nlibrary(DHARMa)\n# Simula os resíduos do modelo 3 e gera os gráficos de diagnóstico\nplot(simulateResiduals(m3))"
+  },
+  {
+    "objectID": "aula 6.html#comparação-de-médias",
+    "href": "aula 6.html#comparação-de-médias",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "1.5 Comparação de Médias",
+    "text": "1.5 Comparação de Médias\nComo o modelo é fatorial, extraímos as médias marginais estimadas (emmeans). Havendo interação significativa, a rotina correta é comparar os tratamentos fixando os níveis da dose.\n\nlibrary(emmeans)\nlibrary(multcomp)\nlibrary(multcompView)\n\n# Extrai as médias do tratamento DENTRO de cada nível de dose\nmedias_m3 &lt;- emmeans(m3, ~ treat | dose)\nmedias_m3\n\ndose = 0.5:\n treat        emmean     SE df lower.CL upper.CL\n Ionic liquid 0.2921 0.0273 16  0.23420   0.3500\n Tebuconazole 0.0210 0.0273 16 -0.03690   0.0789\n\ndose = 2:\n treat        emmean     SE df lower.CL upper.CL\n Ionic liquid 0.0501 0.0273 16 -0.00781   0.1080\n Tebuconazole 0.0202 0.0273 16 -0.03768   0.0781\n\nConfidence level used: 0.95 \n\n# Teste de agrupamento (Compact Letter Display) para separar as médias\ncld(medias_m3, Letters = letters)\n\ndose = 0.5:\n treat        emmean     SE df lower.CL upper.CL .group\n Tebuconazole 0.0210 0.0273 16 -0.03690   0.0789  a    \n Ionic liquid 0.2921 0.0273 16  0.23420   0.3500   b   \n\ndose = 2:\n treat        emmean     SE df lower.CL upper.CL .group\n Tebuconazole 0.0202 0.0273 16 -0.03768   0.0781  a    \n Ionic liquid 0.0501 0.0273 16 -0.00781   0.1080  a    \n\nConfidence level used: 0.95 \nsignificance level used: alpha = 0.05 \nNOTE: If two or more means share the same grouping symbol,\n      then we cannot show them to be different.\n      But we also did not show them to be the same."
+  },
+  {
+    "objectID": "aula 6.html#carregamento-e-preparação",
+    "href": "aula 6.html#carregamento-e-preparação",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "2.1 Carregamento e Preparação",
+    "text": "2.1 Carregamento e Preparação\n\n# Carrega dados do experimento de campo\ncampo &lt;- read_excel(\"dados_diversos.xlsx\", \"fungicida_campo\")\n\ncampo2 &lt;- campo |&gt; \n  mutate(trat = factor(TRAT),\n         bloco = factor(BLOCO)) |&gt; \n  dplyr::select(trat, bloco, PROD) |&gt;\n  rename(prod = PROD)"
+  },
+  {
+    "objectID": "aula 6.html#visualização-dos-dados-de-campo",
+    "href": "aula 6.html#visualização-dos-dados-de-campo",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "2.2 Visualização dos Dados de Campo",
+    "text": "2.2 Visualização dos Dados de Campo\n\ncampo2 |&gt;\n  ggplot(aes(trat, prod)) +\n  geom_point(alpha = 0.5, color = \"gray50\") +\n  ylim(2000, 6000) +\n  stat_summary(fun = mean, geom = \"point\", color = \"red\", size = 3) +\n  theme_classic() +\n  labs(x = \"Tratamento fungicida\",\n       y = \"Produtividade (kg/ha)\")"
+  },
+  {
+    "objectID": "aula 6.html#modelagem-anova-em-dbc",
+    "href": "aula 6.html#modelagem-anova-em-dbc",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "2.3 Modelagem: ANOVA em DBC",
+    "text": "2.3 Modelagem: ANOVA em DBC\nA principal diferença do DBC em relação ao DIC (Inteiramente Casualizado) é a inclusão do bloco no modelo aditivo (+ bloco). O bloco absorve parte da variação residual (erro não controlado), melhorando a precisão estatística para testar o fator de interesse (tratamento).\n\n# Modelo linear com Tratamento e Bloco\nm_bloco &lt;- lm(prod ~ trat + bloco, data = campo2)\n\n# Checagem das premissas via DHARMa\nplot(simulateResiduals(m_bloco))\n\n\n\n\n\n\n\n# Tabela da ANOVA\nanova(m_bloco)\n\nAnalysis of Variance Table\n\nResponse: prod\n          Df  Sum Sq Mean Sq F value Pr(&gt;F)  \ntrat       7 2994142  427735  2.6369 0.0402 *\nbloco      3  105716   35239  0.2172 0.8833  \nResiduals 21 3406384  162209                 \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\n\n\nTeoria Estatística - Bloco: Se o bloco for significativo na ANOVA, significa que foi eficiente em controlar uma fonte de variação. Não se realiza teste de médias para blocos, pois o interesse do estudo está focado apenas nos tratamentos."
+  },
+  {
+    "objectID": "aula 6.html#extração-das-médias-e-gráfico-de-resultados",
+    "href": "aula 6.html#extração-das-médias-e-gráfico-de-resultados",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "2.4 Extração das Médias e Gráfico de Resultados",
+    "text": "2.4 Extração das Médias e Gráfico de Resultados\nApós atestar significância na ANOVA para o fator Tratamento, realizamos a extração das estimativas do modelo e o teste de agrupamento.\n\n# Calcula as médias estimadas do modelo para o fator tratamento\nmedias_m_bloco &lt;- emmeans(m_bloco, ~ trat)\n\n# Gera as letras indicadoras de diferença estatística\nletras &lt;- cld(medias_m_bloco, Letters = LETTERS)\nletras$.group &lt;- trimws(letras$.group) # Remove espaços extras das letras geradas\n\n# Gráfico de Produtividade com as médias do modelo e separação por letras\nggplot() +\n  # Pontos reais brutos do dataset\n  geom_jitter(data = campo2, \n              aes(x = trat, y = prod), \n              width = 0.1, alpha = 0.4, color = \"gray50\") +\n  # Barras de erro do Intervalo de Confiança do modelo (emmeans)\n  geom_errorbar(data = letras, \n                aes(x = trat, ymin = lower.CL, ymax = upper.CL), \n                width = 0.2, linewidth = 0.8, color = \"black\") +\n  # Ponto representando a Média Estimada\n  geom_point(data = letras, \n             aes(x = trat, y = emmean), \n             size = 3, color = \"darkred\") +\n  # Letras de significância posicionadas um pouco acima do limite superior (upper.CL)\n  geom_text(data = letras, \n            aes(x = trat, y = upper.CL + 150, label = .group), \n            fontface = \"bold\", size = 4.5, color = \"black\") +\n  ylim(1500, 6000) +\n  theme_classic() +\n  labs(x = \"Tratamento fungicida\",\n       y = \"Produtividade (kg/ha)\")"
+  },
+  {
+    "objectID": "aula 6.html#carregamento-e-visualização-básica",
+    "href": "aula 6.html#carregamento-e-visualização-básica",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "3.1 Carregamento e Visualização Básica",
+    "text": "3.1 Carregamento e Visualização Básica\nVamos analisar a correlação entre a incidência da doença (inc) e a produtividade (yld) ou número de escleródios (scl).\n\n# Carrega dados do estudo de mofo branco\nmofo &lt;- read_excel(\"dados_diversos.xlsx\", \"mofo\")\n\n# Visualização exploratória da relação Incidência vs Escleródios\nmofo |&gt; \n  ggplot(aes(inc, scl)) +\n  geom_point() +\n  geom_smooth(method = \"lm\", se = FALSE) +\n  facet_wrap(~ study) +\n  theme_bw() +\n  labs(x = \"Incidência de Mofo Branco (%)\", y = \"Número de Escleródios\")\n\n`geom_smooth()` using formula = 'y ~ x'"
+  },
+  {
+    "objectID": "aula 6.html#teste-de-correlação",
+    "href": "aula 6.html#teste-de-correlação",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "3.2 Teste de Correlação",
+    "text": "3.2 Teste de Correlação\nA função cor extrai o valor de \\(r\\). Para obtermos também o p-valor, usamos a função cor.test.\n\n# Coeficiente de correlação geral (r) entre Incidência e Produtividade\ncor(mofo$inc, mofo$yld)\n\n[1] -0.3825092\n\n# Teste de significância da correlação\ncor.test(mofo$inc, mofo$yld)\n\n\n    Pearson's product-moment correlation\n\ndata:  mofo$inc and mofo$yld\nt = -2.9274, df = 50, p-value = 0.005133\nalternative hypothesis: true correlation is not equal to 0\n95 percent confidence interval:\n -0.5934601 -0.1223842\nsample estimates:\n       cor \n-0.3825092 \n\n# Correlação entre Incidência e Produtividade agrupada por Estudo\ncorrelacoes &lt;- mofo |&gt; \n  group_by(study) |&gt; \n  summarise(r = cor(inc, yld))\n\ncorrelacoes\n\n# A tibble: 4 × 2\n  study      r\n  &lt;dbl&gt;  &lt;dbl&gt;\n1     1 -0.900\n2     2 -0.815\n3     3 -0.957\n4     4 -0.747\n\n\n\nInterpretação: Um valor de \\(r\\) negativo e significativo entre incidência e produtividade indica de forma matemática que maiores taxas da doença afetam negativamente a produção. O p-valor testa a hipótese nula de que a correlação populacional é zero.\n\nÉ recomendável avaliar as distribuições das variáveis via histograma, pois a correlação de Pearson é mais adequada a distribuições normais. Se a relação não for linear ou apresentar problemas severos de assimetria, a correlação baseada em postos (Spearman) pode ser a melhor alternativa.\n\n# Histogramas para avaliação visual da distribuição das variáveis\npar(mfrow = c(1,3))\nhist(mofo$yld, main = \"Produtividade\", xlab = \"yld\")\nhist(mofo$inc, main = \"Incidência\", xlab = \"inc\")\nhist(log(mofo$scl), main = \"Log(Escleródios)\", xlab = \"log(scl)\")\n\n\n\n\n\n\n\npar(mfrow = c(1,1))"
+  },
+  {
+    "objectID": "aula 6.html#gráfico-de-correlação-avançado",
+    "href": "aula 6.html#gráfico-de-correlação-avançado",
+    "title": "Aula 6 - Análise de Variância (Fatorial e Blocos) e Correlação",
+    "section": "3.3 Gráfico de Correlação Avançado",
+    "text": "3.3 Gráfico de Correlação Avançado\nPara melhorar a visualização científica e inserir diretamente os coeficientes e significância no gráfico, o pacote ggpubr possui a excelente função stat_cor().\n\nlibrary(ggthemes)\nlibrary(ggpubr) # Necessário para o stat_cor()\n\n# Relação Incidência vs Escleródios colorida por estudo\nmofo |&gt;\n  ggplot(aes(inc, scl, color = factor(study))) +\n  geom_point() +\n  geom_smooth(method = \"lm\", se = FALSE) + \n  # stat_cor() adiciona o valor de R e o p-valor no gráfico de forma automática\n  stat_cor(show.legend = FALSE) +\n  scale_color_colorblind() +\n  theme_classic() +\n  labs(x = \"Incidência de Mofo Branco (%)\", \n       y = \"Número de Escleródios\", \n       color = \"Estudo\")"
   },
   {
     "objectID": "aula 4.html",
@@ -576,6 +1066,300 @@
   {
     "objectID": "aula 5.html#gráfico-das-médias-estimadas-do-glm",
     "href": "aula 5.html#gráfico-das-médias-estimadas-do-glm",
+    "title": "Apresentação",
+    "section": "Gráfico das médias estimadas do GLM",
+    "text": "Gráfico das médias estimadas do GLM\n\ndf3 |&gt;\n  ggplot(aes(x = reorder(spray, -rate), y = rate, label = .group)) +\n  geom_point() +\n  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.1) +\n  geom_text(aes(y = asymp.UCL), vjust = -0.5, size = 4) +\n  theme_classic() +\n  labs(\n    x = \"Inseticida\",\n    y = \"Insetos vivos (contagem esperada)\"\n  ) +\n  coord_flip()"
+  },
+  {
+    "objectID": "aula 7.html",
+    "href": "aula 7.html",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "",
+    "text": "Nesta aula, abordaremos a análise de um experimento em Parcelas Subdivididas (Split-Plot). Esse delineamento é frequentemente utilizado quando um dos fatores exige parcelas maiores (ou é mais difícil de aleatorizar) e o outro fator pode ser aplicado em sub-parcelas menores dentro da parcela principal.\nNeste exemplo (milho), temos: - Parcela Principal: Híbrido de milho (hybrid). - Sub-parcela: Método de inoculação/avaliação (method). - Bloco: Controle de variação local (block).\nVamos analisar o índice de doença (index) e a produtividade (yield)."
+  },
+  {
+    "objectID": "aula 7.html#carregar-o-conjunto-de-dados",
+    "href": "aula 7.html#carregar-o-conjunto-de-dados",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "1.1 Carregar o conjunto de dados",
+    "text": "1.1 Carregar o conjunto de dados\n\nlibrary(readxl)\nlibrary(tidyverse)\n\n# Carrega os dados da aba \"milho\"\nmilho &lt;- read_excel(\"dados_diversos.xlsx\", \"milho\")\n\n# Visualização rápida da estrutura dos dados\nhead(milho)\n\n# A tibble: 6 × 5\n  hybrid   block method index yield\n  &lt;chr&gt;    &lt;dbl&gt; &lt;chr&gt;  &lt;dbl&gt; &lt;dbl&gt;\n1 30F53 HX     1 pin     21.1 12920\n2 30F53 HX     2 pin     21.1  9870\n3 30F53 HX     3 pin     23.3  8920\n4 30F53 HX     4 pin     35.6 13120\n5 30F53 YH     1 pin     21.1 12060\n6 30F53 YH     2 pin     22.2  7860"
+  },
+  {
+    "objectID": "aula 7.html#visualização-exploratória",
+    "href": "aula 7.html#visualização-exploratória",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "1.2 Visualização Exploratória",
+    "text": "1.2 Visualização Exploratória\nA visualização ajuda a identificar tendências prévias de interação entre Híbrido e Método. Usamos position_dodge para que os pontos não fiquem sobrepostos.\n\n# Gráfico para o Índice de Doença (index)\nmilho |&gt;\n  ggplot(aes(x = hybrid, y = index, color = method)) +\n  geom_point(position = position_dodge(width = 0.5), size = 2) +\n  theme_classic() +\n  labs(title = \"Índice de Doença por Híbrido e Método\",\n       x = \"Híbrido\", y = \"Índice de Doença\", color = \"Método\")\n\n\n\n\n\n\n\n# Gráfico para Produtividade (yield)\nmilho |&gt;\n  ggplot(aes(x = hybrid, y = yield, color = method)) +\n  geom_point(position = position_dodge(width = 0.5), size = 2) +\n  theme_classic() +\n  labs(title = \"Produtividade por Híbrido e Método\",\n       x = \"Híbrido\", y = \"Produtividade\", color = \"Método\")"
+  },
+  {
+    "objectID": "aula 7.html#checagem-de-premissas-abordagem-clássica",
+    "href": "aula 7.html#checagem-de-premissas-abordagem-clássica",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "2.1 Checagem de Premissas (Abordagem Clássica)",
+    "text": "2.1 Checagem de Premissas (Abordagem Clássica)\nExtraímos os resíduos do nível da sub-parcela (Within) para checar a normalidade e homogeneidade de variâncias.\n\nlibrary(car)\n\n# Extrai resíduos do Erro (b)\nresiduos &lt;- residuals(modelo_index$Within)\n\n# Teste de Shapiro-Wilk para Normalidade\nshapiro.test(residuos)\n\n\n    Shapiro-Wilk normality test\n\ndata:  residuos\nW = 0.97554, p-value = 0.5122\n\n# Teste de Levene para Homogeneidade de Variâncias\nleveneTest(index ~ hybrid * method, data = milho)\n\nLevene's Test for Homogeneity of Variance (center = median)\n      Df F value  Pr(&gt;F)  \ngroup 11  2.1493 0.04152 *\n      36                  \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\n\n\nTeoria Estatística: P-valores \\(&gt; 0.05\\) nos testes de Shapiro-Wilk e Levene indicam que não rejeitamos a hipótese nula. Isso significa que os resíduos seguem distribuição normal e as variâncias são homogêneas, garantindo que as premissas da ANOVA clássica foram atendidas."
+  },
+  {
+    "objectID": "aula 7.html#premissas-via-dharma",
+    "href": "aula 7.html#premissas-via-dharma",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "3.1 Premissas via DHARMa",
+    "text": "3.1 Premissas via DHARMa\nO pacote DHARMa é excelente para simular resíduos em modelos mistos e realizar testes robustos contra desvios de normalidade, heterocedasticidade e valores atípicos.\n\nlibrary(DHARMa)\n\n# Simulação e gráfico de diagnóstico dos resíduos\nplot(simulateResiduals(modelo_misto))"
+  },
+  {
+    "objectID": "aula 7.html#extraindo-as-médias-e-calculando-as-letras",
+    "href": "aula 7.html#extraindo-as-médias-e-calculando-as-letras",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "4.1 Extraindo as Médias e Calculando as Letras",
+    "text": "4.1 Extraindo as Médias e Calculando as Letras\nRealizaremos duas comparações simultâneas: 1. Letras Minúsculas: Compara Híbridos dentro do mesmo Método (nas Colunas). 2. Letras Maiúsculas: Compara Métodos dentro do mesmo Híbrido (nas Linhas).\n\nlibrary(emmeans)\nlibrary(multcomp)\nlibrary(multcompView)\n\n# 1. Letras MINÚSCULAS: Comparando híbridos (colunas)\nmedias_colunas &lt;- emmeans(modelo_misto, ~ hybrid | method)\ncld_colunas &lt;- cld(medias_colunas, Letters = letters) |&gt;\n  as.data.frame() |&gt;\n  mutate(letra_min = trimws(.group)) |&gt; \n  dplyr::select(hybrid, method, emmean, letra_min, lower.CL, upper.CL)\n\n# 2. Letras MAIÚSCULAS: Comparando métodos (linhas)\nmedias_linhas &lt;- emmeans(modelo_misto, ~ method | hybrid)\ncld_linhas &lt;- cld(medias_linhas, Letters = LETTERS) |&gt;\n  as.data.frame() |&gt;\n  mutate(letra_mai = trimws(.group)) |&gt; \n  dplyr::select(hybrid, method, letra_mai)"
+  },
+  {
+    "objectID": "aula 7.html#montagem-da-tabela-de-médias-formatada",
+    "href": "aula 7.html#montagem-da-tabela-de-médias-formatada",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "4.2 Montagem da Tabela de Médias Formatada",
+    "text": "4.2 Montagem da Tabela de Médias Formatada\nUnimos as duas comparações (letras minúsculas e maiúsculas) para criar uma tabela pronta para formatação de publicação científica.\n\n\n\nHíbrido\nMétodo Pin\nMétodo Silk\n\n\n\n\nBG7049H\n19.4 a A\n19.2 a A\n\n\n30K64\n20.6 a A\n21.5 a A\n\n\n30F53 YH\n24.6 ab A\n26.2 a A\n\n\n30F53 HX\n25.3 ab A\n25 a A\n\n\n30S31YH\n32.5 ab A\n26.7 a A\n\n\n30S31H\n38.1 b B\n26.5 a A\n\n\n\n\nNota: Médias seguidas por letras iguais, minúsculas nas colunas (comparação de híbridos dentro de um mesmo método) e maiúsculas nas linhas (comparação de métodos dentro de um mesmo híbrido), não diferem entre si pelo teste de Tukey ao nível de 5% de significância."
+  },
+  {
+    "objectID": "aula 7.html#gráfico-de-barras-com-as-letras-de-significância",
+    "href": "aula 7.html#gráfico-de-barras-com-as-letras-de-significância",
+    "title": "Aula 7 - Delineamento em Parcelas Subdivididas (Split-Plot) e Modelos Mistos",
+    "section": "4.3 Gráfico de Barras com as Letras de Significância",
+    "text": "4.3 Gráfico de Barras com as Letras de Significância\nApresentar os dados em formato de barras, com as barras de erro e as devidas letras, é a abordagem visual mais aceita e utilizada para resultados de interações complexas (fatoriais e parcelas subdivididas) na fitopatologia.\n\n# Junta os dados completos para o gráfico (médias, Intervalos de Confiança e as duas letras)\ndados_grafico &lt;- cld_colunas |&gt;\n  left_join(cld_linhas, by = c(\"hybrid\", \"method\")) |&gt;\n  mutate(letras_finais = paste(letra_min, letra_mai))\n\n# Gráfico Padrão Publicação\nggplot(dados_grafico, aes(x = hybrid, y = emmean, fill = method)) +\n  # Barras\n  geom_col(position = position_dodge(width = 0.8), width = 0.7, color = \"black\") +\n  \n  # Barras de Erro (Intervalo de Confiança 95%)\n  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), \n                position = position_dodge(width = 0.8), \n                width = 0.2, linewidth = 0.7) +\n  \n  # Letras de significância (+ 2.5 na altura do eixo Y para não sobrepor a barra de erro)\n  geom_text(aes(label = letras_finais, y = upper.CL + 2.5), \n            position = position_dodge(width = 0.8), \n            vjust = 0, size = 4) +\n  \n  # Cores e legendas personalizadas\n  scale_fill_manual(values = c(\"pin\" = \"#E69F00\", \"silk\" = \"#56B4E9\"),\n                    labels = c(\"Pin\", \"Silk\")) +\n  \n  # Ajuste dos rótulos dos eixos\n  labs(\n    x = \"Híbridos de Milho\",\n    y = \"Índice de Doença (Index)\",\n    fill = \"Método de Inoculação:\"\n  ) +\n  \n  # Tema visual limpo (adequado para revistas científicas)\n  theme_classic() +\n  \n  # Ajustes de alinhamento e tamanho das fontes\n  theme(\n    legend.position = \"top\",\n    axis.text.x = element_text(angle = 45, hjust = 1, size = 11),\n    axis.text.y = element_text(size = 11),\n    axis.title = element_text(size = 12, face = \"bold\")\n  )"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "WebSite",
+    "section": "",
+    "text": "This is a Quarto website.\nTo learn more about Quarto websites visit https://quarto.org/docs/websites.\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "SITE/aula 1.html",
+    "href": "SITE/aula 1.html",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "",
+    "text": "Nesta aula, exploramos os conceitos fundamentais de experimentação agrícola. O foco inicial foi entender como organizar dados brutos de um ensaio de eficácia de produtos fitossanitários.\nA primeira operação realizada foi uma soma simples para testar o ambiente:\n\n\nCode\na &lt;- 2\nb &lt;- 2\na + b\n\n\n[1] 4"
+  },
+  {
+    "objectID": "SITE/aula 1.html#introdução-à-experimentação",
+    "href": "SITE/aula 1.html#introdução-à-experimentação",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "",
+    "text": "Nesta aula, exploramos os conceitos fundamentais de experimentação agrícola. O foco inicial foi entender como organizar dados brutos de um ensaio de eficácia de produtos fitossanitários.\nA primeira operação realizada foi uma soma simples para testar o ambiente:\n\n\nCode\na &lt;- 2\nb &lt;- 2\na + b\n\n\n[1] 4"
+  },
+  {
+    "objectID": "SITE/aula 1.html#materiais-e-métodos",
+    "href": "SITE/aula 1.html#materiais-e-métodos",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "2. Materiais e Métodos",
+    "text": "2. Materiais e Métodos\nO experimento consistiu em avaliar a severidade de uma doença em 8 plantas, divididas em dois grupos:\n\nControle: Plantas sem tratamento.\nFungicida: Plantas tratadas com o produto teste.\n\n\nEstruturação dos Dados no R\nUtilizamos o objeto data.frame para tabular as observações de cada planta.\n\n\nCode\nlibrary(tidyverse)\n\ndados &lt;- data.frame(\n  planta = seq(1:8),\n  tratamento = c(\"controle\", \"controle\", \"controle\", \"controle\", \n                 \"fungicida\", \"fungicida\", \"fungicida\", \"fungicida\"),\n  severidade = c(42, 38, 45, 40, 12, 18, 15, 10)\n)\n\nknitr::kable(dados) # Gera uma tabela formatada no documento\n\n\n\n\n\nplanta\ntratamento\nseveridade\n\n\n\n\n1\ncontrole\n42\n\n\n2\ncontrole\n38\n\n\n3\ncontrole\n45\n\n\n4\ncontrole\n40\n\n\n5\nfungicida\n12\n\n\n6\nfungicida\n18\n\n\n7\nfungicida\n15\n\n\n8\nfungicida\n10"
+  },
+  {
+    "objectID": "SITE/aula 1.html#visualização-dos-dados",
+    "href": "SITE/aula 1.html#visualização-dos-dados",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "3. Visualização dos Dados",
+    "text": "3. Visualização dos Dados\nA visualização é a etapa crítica para entender a dispersão dos dados. Utilizamos o pacote ggplot2 com as seguintes camadas:\n\ngeom_jitter: Para observar cada repetição individualmente sem sobreposição total.\nstat_summary: Para destacar a média aritmética de cada tratamento.\nscale_y_continuous: Para padronizar a escala de 0 a 50%.\n\n\n\nCode\nggplot(dados, aes(x = tratamento, y = severidade, color = tratamento)) +\n  geom_jitter(width = 0.1, size = 3, alpha = 0.6) +\n  stat_summary(fun = \"mean\", geom = \"point\", shape = 18, size = 5, color = \"black\") +\n  scale_y_continuous(limits = c(0, 50), breaks = seq(0, 50, by = 5)) +\n  theme_classic(base_size = 14) +\n  labs(\n    x = \"Tratamento\",\n    y = \"Severidade (%)\",\n    title = \"Comparação Visual de Severidade\"\n  ) +\n  theme(legend.position = \"none\")\n\n\n\n\n\nDistribuição da severidade da doença entre os tratamentos."
+  },
+  {
+    "objectID": "SITE/aula 1.html#análise-estatística",
+    "href": "SITE/aula 1.html#análise-estatística",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "4. Análise Estatística",
+    "text": "4. Análise Estatística\nPara confirmar se a redução observada no grupo “fungicida” é estatisticamente diferente do “controle”, aplicamos o Teste t de Student para amostras independentes.\n\n\nCode\n# Teste t considerando variâncias iguais\nresultado &lt;- t.test(severidade ~ tratamento, data = dados, var.equal = TRUE)\n\nresultado\n\n\n\n    Two Sample t-test\n\ndata:  severidade by tratamento\nt = 11.955, df = 6, p-value = 2.076e-05\nalternative hypothesis: true difference in means between group controle and group fungicida is not equal to 0\n95 percent confidence interval:\n 21.87122 33.12878\nsample estimates:\n mean in group controle mean in group fungicida \n                  41.25                   13.75 \n\n\n\nInterpretação dos Resultados\nCom base no p-valor obtido (2^{-5}), podemos concluir se existe ou não evidência estatística para rejeitar a hipótese de que as médias são iguais. Como o valor é significativamente menor que 0.05, o fungicida demonstrou eficácia.\n\nDocumento gerado automaticamente para fins acadêmicos.\n\n### O que este arquivo Quarto faz por você:\n1.  **YAML (Cabeçalho):** Define título, autor e o formato de saída (HTML com sumário).\n2.  **Code Chunks (`{r}`):** Separa o código do texto explicativo.\n3.  **Inline Code:** No final do texto, eu usei uma técnica avançada de Quarto (o uso de crases com `r`) para que ele escreva o valor exato do p-valor diretamente no meio da frase.\n4.  **Tabelas:** O comando `knitr::kable` deixa a visualização dos dados muito mais profissional do que um simples `print`.\n\n**Deseja que eu te mostre como renderizar esse arquivo para PDF ou adicionar uma imagem externa a ele?**"
+  },
+  {
+    "objectID": "SITE/aula 1.html#tópico-1-apresentação",
+    "href": "SITE/aula 1.html#tópico-1-apresentação",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "Tópico 1: Apresentação",
+    "text": "Tópico 1: Apresentação\nEsta é uma aula de experimentação científica.\n\n\nCode\na &lt;- 2\nb &lt;- 2\na + b\n\n\n[1] 4"
+  },
+  {
+    "objectID": "SITE/aula 1.html#dados",
+    "href": "SITE/aula 1.html#dados",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "Dados",
+    "text": "Dados\nAqui estão os dados organizados em um data.frame.\n\n\nCode\nplanta &lt;- seq(1:8)\ntratamento &lt;- c(rep(\"controle\", 4), rep(\"fungicida\", 4))\nseveridade &lt;- c(42, 38, 45, 40, 12, 18, 15, 10)\n\ndados &lt;- data.frame(planta, tratamento, severidade)\nprint(dados)\n\n\n  planta tratamento severidade\n1      1   controle         42\n2      2   controle         38\n3      3   controle         45\n4      4   controle         40\n5      5  fungicida         12\n6      6  fungicida         18\n7      7  fungicida         15\n8      8  fungicida         10"
+  },
+  {
+    "objectID": "SITE/aula 1.html#visualização",
+    "href": "SITE/aula 1.html#visualização",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "Visualização",
+    "text": "Visualização\nAbaixo, o gráfico de severidade por tratamento sem a legenda.\n\n\nCode\nlibrary(ggplot2)\n\nggplot(dados, aes(x = tratamento, y = severidade, color = tratamento)) +\n  geom_jitter(width = 0.1, size = 3) +\n  theme_minimal() +\n  theme(legend.position = \"none\") + # Remove a legenda\n  labs(x = \"Tratamento\", y = \"Severidade (%)\")"
+  },
+  {
+    "objectID": "SITE/aula 1.html#análise-estatística-1",
+    "href": "SITE/aula 1.html#análise-estatística-1",
+    "title": "Relatório de Aula: Experimentação em Fitopatologia",
+    "section": "Análise Estatística",
+    "text": "Análise Estatística\nComparação das médias entre tratamentos através do teste t.\n\n\nCode\nresultado_teste &lt;- t.test(severidade ~ tratamento, data = dados, var.equal = TRUE)\nprint(resultado_teste)\n\n\n\n    Two Sample t-test\n\ndata:  severidade by tratamento\nt = 11.955, df = 6, p-value = 2.076e-05\nalternative hypothesis: true difference in means between group controle and group fungicida is not equal to 0\n95 percent confidence interval:\n 21.87122 33.12878\nsample estimates:\n mean in group controle mean in group fungicida \n                  41.25                   13.75"
+  },
+  {
+    "objectID": "SITE/aula 3.html",
+    "href": "SITE/aula 3.html",
+    "title": "Aula 3 – Importação, integração, teste t e visualização de dados no R",
+    "section": "",
+    "text": "Nesta aula vamos construir um fluxo completo de trabalho para dados experimentais salvos em múltiplos arquivos. Em uma situação real de pesquisa, é comum receber bases produzidas por pessoas diferentes, em anos diferentes e com pequenas inconsistências de nomes, categorias e formatos. Por isso, antes de ajustar modelos ou produzir gráficos, precisamos organizar a base de dados de forma coerente.\nAo longo desta aula, vamos:\n\nimportar arquivos de anos distintos;\ninspecionar a estrutura de cada tabela;\npadronizar nomes de colunas;\nharmonizar categorias;\nunir tabelas por linhas;\nadicionar informações auxiliares com join;\ncomparar médias de produtividade entre tratamentos com o teste t;\nvisualizar o valor da estatística t e o p-valor;\nconstruir um gráfico final anotado com o resultado do teste."
+  },
+  {
+    "objectID": "SITE/aula 3.html#hipóteses-do-teste",
+    "href": "SITE/aula 3.html#hipóteses-do-teste",
+    "title": "Aula 3 – Importação, integração, teste t e visualização de dados no R",
+    "section": "16.1 13.1 Hipóteses do teste",
+    "text": "16.1 13.1 Hipóteses do teste\nAo aplicar o teste t, formulamos duas hipóteses:\n\nHipótese nula (\\(H_0\\)): as médias populacionais são iguais\n\\[H_0 : \\mu_1 = \\mu_2\\]\nHipótese alternativa (\\(H_1\\)): as médias populacionais são diferentes\n\\[H_1 : \\mu_1 \\neq \\mu_2\\]\n\nNo nosso exemplo, queremos comparar a produtividade média entre os tratamentos Control e Fungicide."
+  },
+  {
+    "objectID": "SITE/aula 3.html#estatística-do-teste",
+    "href": "SITE/aula 3.html#estatística-do-teste",
+    "title": "Aula 3 – Importação, integração, teste t e visualização de dados no R",
+    "section": "16.2 13.2 Estatística do teste",
+    "text": "16.2 13.2 Estatística do teste\nA estatística t compara a diferença observada entre médias com a variabilidade dessa diferença.\nNa forma clássica do teste com variâncias assumidas como iguais, a estatística é dada por:\n\\[\nt = \\frac{\\bar{x}_1 - \\bar{x}_2}{s_p\\sqrt{\\frac{1}{n_1} + \\frac{1}{n_2}}}\n\\]\nem que:\n\n\\(\\bar{x}_1\\) e \\(\\bar{x}_2\\) são as médias amostrais;\n\\(n_1\\) e \\(n_2\\) são os tamanhos das amostras;\n\\(s_p\\) é o desvio-padrão combinado (pooled standard deviation), calculado por:\n\n\\[\ns_p = \\sqrt{\\frac{(n_1 - 1)s_1^2 + (n_2 - 1)s_2^2}{n_1 + n_2 - 2}}\n\\]\nem que:\n\n\\(s_1^2\\) e \\(s_2^2\\) são as variâncias amostrais dos dois grupos.\n\nNa prática, o R calcula automaticamente a estatística t e o p-valor quando usamos t.test(). O mais importante neste momento é entender a lógica: quanto maior a diferença entre médias em relação à variabilidade dos dados, mais extremo tende a ser o valor de t."
+  },
+  {
+    "objectID": "SITE/aula 3.html#ajustar-o-teste-no-r",
+    "href": "SITE/aula 3.html#ajustar-o-teste-no-r",
+    "title": "Aula 3 – Importação, integração, teste t e visualização de dados no R",
+    "section": "16.3 13.3 Ajustar o teste no R",
+    "text": "16.3 13.3 Ajustar o teste no R\nVamos aplicar o teste t à produtividade.\n\nteste_t_yield &lt;- t.test(yield_kg_ha ~ treatment, data = dados_experimento_geo)\nteste_t_yield\n\n\n    Welch Two Sample t-test\n\ndata:  yield_kg_ha by treatment\nt = -15.737, df = 20.762, p-value = 5.186e-13\nalternative hypothesis: true difference in means between group Control and group Fungicide is not equal to 0\n95 percent confidence interval:\n -816.4113 -625.7099\nsample estimates:\n  mean in group Control mean in group Fungicide \n               3341.667                4062.727 \n\n\nA saída mostra, entre outras informações:\n\no valor da estatística t;\nos graus de liberdade;\no p-valor;\nas médias estimadas dos dois grupos.\n\nTambém podemos organizar essa saída em formato de tabela com broom::tidy().\n\nresultado_tidy &lt;- tidy(teste_t_yield)\nresultado_tidy\n\n# A tibble: 1 × 10\n  estimate estimate1 estimate2 statistic  p.value parameter conf.low conf.high\n     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;\n1    -721.     3342.     4063.     -15.7 5.19e-13      20.8    -816.     -626.\n# ℹ 2 more variables: method &lt;chr&gt;, alternative &lt;chr&gt;"
+  },
+  {
+    "objectID": "SITE/aula 5.html",
+    "href": "SITE/aula 5.html",
+    "title": "Apresentação",
+    "section": "",
+    "text": "title: “Aula 5 — ANOVA, Diagnóstico de Pressupostos, Kruskal-Wallis e GLM de Poisson” format: html: toc: true toc-depth: 3 number-sections: true editor: visual editor_options: chunk_output_type: console —"
+  },
+  {
+    "objectID": "SITE/aula 5.html#ideia-do-modelo",
+    "href": "SITE/aula 5.html#ideia-do-modelo",
+    "title": "Apresentação",
+    "section": "Ideia do modelo",
+    "text": "Ideia do modelo\nA ANOVA de um fator testa a hipótese de que todas as médias populacionais dos grupos são iguais.\nA hipótese nula é:\n\\[\nH_0: \\mu_A = \\mu_B = \\mu_C = \\mu_D = \\mu_E = \\mu_F\n\\]\nA hipótese alternativa é:\n\\[\nH_1: \\text{pelo menos uma média difere das demais}\n\\]\nO modelo linear da ANOVA pode ser escrito como:\n\\[\nY_{ij} = \\mu + \\tau_i + \\varepsilon_{ij}\n\\]\nem que:\n\n\\(Y_{ij}\\) é a observação \\(j\\) no tratamento \\(i\\);\n\\(\\mu\\) é a média geral;\n\\(\\tau_i\\) é o efeito do tratamento \\(i\\);\n\\(\\varepsilon_{ij}\\) é o erro aleatório associado à observação.\n\nAssume-se que:\n\\[\n\\varepsilon_{ij} \\sim N(0, \\sigma^2)\n\\]\nou seja, os erros são independentes, normalmente distribuídos e com variância comum."
+  },
+  {
+    "objectID": "SITE/aula 5.html#decomposição-da-variabilidade",
+    "href": "SITE/aula 5.html#decomposição-da-variabilidade",
+    "title": "Apresentação",
+    "section": "Decomposição da variabilidade",
+    "text": "Decomposição da variabilidade\nA ANOVA particiona a soma de quadrados total em duas partes:\n\\[\nSQ_{Total} = SQ_{Tratamentos} + SQ_{Resíduo}\n\\]\nou, de forma equivalente,\n\\[\nSS_T = SS_{Trat} + SS_E\n\\]\nA estatística de teste é:\n\\[\nF = \\frac{QM_{Tratamentos}}{QM_{Resíduo}}\n\\]\nem que:\n\\[\nQM_{Tratamentos} = \\frac{SQ_{Tratamentos}}{g - 1}\n\\]\n\\[\nQM_{Resíduo} = \\frac{SQ_{Resíduo}}{N - g}\n\\]\ncom \\(g\\) representando o número de grupos e \\(N\\) o número total de observações.\nQuando \\(H_0\\) é verdadeira, espera-se que \\(F\\) seja próximo de 1. Valores muito maiores que 1 indicam evidência de diferença entre médias."
+  },
+  {
+    "objectID": "SITE/aula 5.html#ajuste-do-modelo",
+    "href": "SITE/aula 5.html#ajuste-do-modelo",
+    "title": "Apresentação",
+    "section": "Ajuste do modelo",
+    "text": "Ajuste do modelo\n\nm1 &lt;- lm(count ~ spray, data = insetos)\n\nm1\n\n\nCall:\nlm(formula = count ~ spray, data = insetos)\n\nCoefficients:\n(Intercept)       sprayB       sprayC       sprayD       sprayE       sprayF  \n    14.5000       0.8333     -12.4167      -9.5833     -11.0000       2.1667  \n\nsummary(m1)\n\n\nCall:\nlm(formula = count ~ spray, data = insetos)\n\nResiduals:\n   Min     1Q Median     3Q    Max \n-8.333 -1.958 -0.500  1.667  9.333 \n\nCoefficients:\n            Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept)  14.5000     1.1322  12.807  &lt; 2e-16 ***\nsprayB        0.8333     1.6011   0.520    0.604    \nsprayC      -12.4167     1.6011  -7.755 7.27e-11 ***\nsprayD       -9.5833     1.6011  -5.985 9.82e-08 ***\nsprayE      -11.0000     1.6011  -6.870 2.75e-09 ***\nsprayF        2.1667     1.6011   1.353    0.181    \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 3.922 on 66 degrees of freedom\nMultiple R-squared:  0.7244,    Adjusted R-squared:  0.7036 \nF-statistic:  34.7 on 5 and 66 DF,  p-value: &lt; 2.2e-16\n\nanova(m1)\n\nAnalysis of Variance Table\n\nResponse: count\n          Df Sum Sq Mean Sq F value    Pr(&gt;F)    \nspray      5 2668.8  533.77  34.702 &lt; 2.2e-16 ***\nResiduals 66 1015.2   15.38                      \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1"
+  },
+  {
+    "objectID": "SITE/aula 5.html#resíduos-do-modelo",
+    "href": "SITE/aula 5.html#resíduos-do-modelo",
+    "title": "Apresentação",
+    "section": "Resíduos do modelo",
+    "text": "Resíduos do modelo\nOs resíduos são calculados como:\n\\[\ne_{ij} = y_{ij} - \\hat{y}_{ij}\n\\]\nonde \\(y_{ij}\\) é o valor observado e \\(\\hat{y}_{ij}\\) é o valor ajustado pelo modelo."
+  },
+  {
+    "objectID": "SITE/aula 5.html#histograma-dos-resíduos",
+    "href": "SITE/aula 5.html#histograma-dos-resíduos",
+    "title": "Apresentação",
+    "section": "Histograma dos resíduos",
+    "text": "Histograma dos resíduos\n\nhist(m1$residuals,\n     main = \"Histograma dos resíduos do modelo m1\",\n     xlab = \"Resíduos\")"
+  },
+  {
+    "objectID": "SITE/aula 5.html#teste-de-normalidade-de-shapiro-wilk",
+    "href": "SITE/aula 5.html#teste-de-normalidade-de-shapiro-wilk",
+    "title": "Apresentação",
+    "section": "Teste de normalidade de Shapiro-Wilk",
+    "text": "Teste de normalidade de Shapiro-Wilk\nO teste de Shapiro-Wilk avalia a hipótese:\n\\[\nH_0: \\text{os resíduos seguem distribuição normal}\n\\]\n\nshapiro.test(m1$residuals)\n\n\n    Shapiro-Wilk normality test\n\ndata:  m1$residuals\nW = 0.96006, p-value = 0.02226"
+  },
+  {
+    "objectID": "SITE/aula 5.html#teste-de-homogeneidade-de-variâncias",
+    "href": "SITE/aula 5.html#teste-de-homogeneidade-de-variâncias",
+    "title": "Apresentação",
+    "section": "Teste de homogeneidade de variâncias",
+    "text": "Teste de homogeneidade de variâncias\nO teste de Bartlett avalia:\n\\[\nH_0: \\sigma_A^2 = \\sigma_B^2 = \\cdots = \\sigma_F^2\n\\]\n\nbartlett.test(count ~ spray, data = insetos)\n\n\n    Bartlett test of homogeneity of variances\n\ndata:  count by spray\nBartlett's K-squared = 25.96, df = 5, p-value = 9.085e-05"
+  },
+  {
+    "objectID": "SITE/aula 5.html#funções-auxiliares-para-diagnóstico",
+    "href": "SITE/aula 5.html#funções-auxiliares-para-diagnóstico",
+    "title": "Apresentação",
+    "section": "Funções auxiliares para diagnóstico",
+    "text": "Funções auxiliares para diagnóstico\n\nlibrary(performance)\n\ncheck_normality(m1)\n\nWarning: Non-normality of residuals detected (p = 0.022).\n\ncheck_heteroscedasticity(m1)\n\nWarning: Heteroscedasticity (non-constant error variance) detected (p &lt; .001)."
+  },
+  {
+    "objectID": "SITE/aula 5.html#simulação-de-resíduos",
+    "href": "SITE/aula 5.html#simulação-de-resíduos",
+    "title": "Apresentação",
+    "section": "Simulação de resíduos",
+    "text": "Simulação de resíduos\nO pacote DHARMa oferece uma visualização bastante útil do comportamento dos resíduos simulados.\n\nlibrary(DHARMa)\n\nThis is DHARMa 0.4.7. For overview type '?DHARMa'. For recent changes, type news(package = 'DHARMa')\n\nplot(simulateResiduals(m1))"
+  },
+  {
+    "objectID": "SITE/aula 5.html#visualização-após-transformação",
+    "href": "SITE/aula 5.html#visualização-após-transformação",
+    "title": "Apresentação",
+    "section": "Visualização após transformação",
+    "text": "Visualização após transformação\n\ninsetos2 |&gt;\n  ggplot(aes(x = spray, y = count_sqrt)) +\n  geom_boxplot(outlier.colour = NA) +\n  geom_jitter(width = 0.1, alpha = 0.7) +\n  theme_classic() +\n  labs(\n    x = \"Tratamento (spray)\",\n    y = expression(sqrt(\"Número de insetos sobreviventes\"))\n  )"
+  },
+  {
+    "objectID": "SITE/aula 5.html#ajuste-do-modelo-com-dados-transformados",
+    "href": "SITE/aula 5.html#ajuste-do-modelo-com-dados-transformados",
+    "title": "Apresentação",
+    "section": "Ajuste do modelo com dados transformados",
+    "text": "Ajuste do modelo com dados transformados\n\nm2 &lt;- lm(count_sqrt ~ spray, data = insetos2)\n\nm2\n\n\nCall:\nlm(formula = count_sqrt ~ spray, data = insetos2)\n\nCoefficients:\n(Intercept)       sprayB       sprayC       sprayD       sprayE       sprayF  \n     3.7607       0.1160      -2.5158      -1.5963      -1.9512       0.2579  \n\nsummary(m2)\n\n\nCall:\nlm(formula = count_sqrt ~ spray, data = insetos2)\n\nResiduals:\n     Min       1Q   Median       3Q      Max \n-1.24486 -0.39970 -0.01902  0.42661  1.40089 \n\nCoefficients:\n            Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept)   3.7607     0.1814  20.733  &lt; 2e-16 ***\nsprayB        0.1160     0.2565   0.452    0.653    \nsprayC       -2.5158     0.2565  -9.807 1.64e-14 ***\nsprayD       -1.5963     0.2565  -6.223 3.80e-08 ***\nsprayE       -1.9512     0.2565  -7.606 1.34e-10 ***\nsprayF        0.2579     0.2565   1.006    0.318    \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 0.6283 on 66 degrees of freedom\nMultiple R-squared:  0.7724,    Adjusted R-squared:  0.7552 \nF-statistic:  44.8 on 5 and 66 DF,  p-value: &lt; 2.2e-16\n\nanova(m2)\n\nAnalysis of Variance Table\n\nResponse: count_sqrt\n          Df Sum Sq Mean Sq F value    Pr(&gt;F)    \nspray      5 88.438 17.6876  44.799 &lt; 2.2e-16 ***\nResiduals 66 26.058  0.3948                      \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1"
+  },
+  {
+    "objectID": "SITE/aula 5.html#diagnóstico-do-modelo-transformado",
+    "href": "SITE/aula 5.html#diagnóstico-do-modelo-transformado",
+    "title": "Apresentação",
+    "section": "Diagnóstico do modelo transformado",
+    "text": "Diagnóstico do modelo transformado\n\nhist(m2$residuals,\n     main = \"Histograma dos resíduos do modelo m2\",\n     xlab = \"Resíduos\")\n\n\n\n\n\n\n\nshapiro.test(m2$residuals)\n\n\n    Shapiro-Wilk normality test\n\ndata:  m2$residuals\nW = 0.98721, p-value = 0.6814\n\nbartlett.test(count_sqrt ~ spray, data = insetos2)\n\n\n    Bartlett test of homogeneity of variances\n\ndata:  count_sqrt by spray\nBartlett's K-squared = 3.7525, df = 5, p-value = 0.5856\n\ncheck_normality(m2)\n\nOK: residuals appear as normally distributed (p = 0.681).\n\ncheck_heteroscedasticity(m2)\n\nOK: Error variance appears to be homoscedastic (p = 0.854).\n\nplot(simulateResiduals(m2))"
+  },
+  {
+    "objectID": "SITE/aula 5.html#médias-ajustadas",
+    "href": "SITE/aula 5.html#médias-ajustadas",
+    "title": "Apresentação",
+    "section": "Médias ajustadas",
+    "text": "Médias ajustadas\nO pacote emmeans calcula médias marginais estimadas, isto é, médias ajustadas com base no modelo.\n\nlibrary(emmeans)\n\nWelcome to emmeans.\nCaution: You lose important information if you filter this package's results.\nSee '? untidy'\n\nmedias_m1 &lt;- emmeans(m1, ~ spray)\nmedias_m1\n\n spray emmean   SE df lower.CL upper.CL\n A      14.50 1.13 66   12.240    16.76\n B      15.33 1.13 66   13.073    17.59\n C       2.08 1.13 66   -0.177     4.34\n D       4.92 1.13 66    2.656     7.18\n E       3.50 1.13 66    1.240     5.76\n F      16.67 1.13 66   14.406    18.93\n\nConfidence level used: 0.95"
+  },
+  {
+    "objectID": "SITE/aula 5.html#teste-de-tukey",
+    "href": "SITE/aula 5.html#teste-de-tukey",
+    "title": "Apresentação",
+    "section": "Teste de Tukey",
+    "text": "Teste de Tukey\nO procedimento de Tukey controla o erro do tipo I no conjunto das comparações par a par.\n\npairs(medias_m1, adjust = \"tukey\")\n\n contrast estimate  SE df t.ratio p.value\n A - B      -0.833 1.6 66  -0.520  0.9952\n A - C      12.417 1.6 66   7.755 &lt;0.0001\n A - D       9.583 1.6 66   5.985 &lt;0.0001\n A - E      11.000 1.6 66   6.870 &lt;0.0001\n A - F      -2.167 1.6 66  -1.353  0.7542\n B - C      13.250 1.6 66   8.276 &lt;0.0001\n B - D      10.417 1.6 66   6.506 &lt;0.0001\n B - E      11.833 1.6 66   7.391 &lt;0.0001\n B - F      -1.333 1.6 66  -0.833  0.9603\n C - D      -2.833 1.6 66  -1.770  0.4921\n C - E      -1.417 1.6 66  -0.885  0.9489\n C - F     -14.583 1.6 66  -9.108 &lt;0.0001\n D - E       1.417 1.6 66   0.885  0.9489\n D - F     -11.750 1.6 66  -7.339 &lt;0.0001\n E - F     -13.167 1.6 66  -8.223 &lt;0.0001\n\nP value adjustment: tukey method for comparing a family of 6 estimates"
+  },
+  {
+    "objectID": "SITE/aula 5.html#agrupamento-de-letras",
+    "href": "SITE/aula 5.html#agrupamento-de-letras",
+    "title": "Apresentação",
+    "section": "Agrupamento de letras",
+    "text": "Agrupamento de letras\nTratamentos que compartilham a mesma letra não diferem entre si ao nível de significância adotado.\n\nlibrary(multcomp)\n\nCarregando pacotes exigidos: mvtnorm\n\n\nCarregando pacotes exigidos: survival\n\n\nCarregando pacotes exigidos: TH.data\n\n\nCarregando pacotes exigidos: MASS\n\n\n\nAnexando pacote: 'MASS'\n\n\nO seguinte objeto é mascarado por 'package:dplyr':\n\n    select\n\n\n\nAnexando pacote: 'TH.data'\n\n\nO seguinte objeto é mascarado por 'package:MASS':\n\n    geyser\n\ncld(medias_m1, Letters = LETTERS)\n\n spray emmean   SE df lower.CL upper.CL .group\n C       2.08 1.13 66   -0.177     4.34  A    \n E       3.50 1.13 66    1.240     5.76  A    \n D       4.92 1.13 66    2.656     7.18  A    \n A      14.50 1.13 66   12.240    16.76   B   \n B      15.33 1.13 66   13.073    17.59   B   \n F      16.67 1.13 66   14.406    18.93   B   \n\nConfidence level used: 0.95 \nP value adjustment: tukey method for comparing a family of 6 estimates \nsignificance level used: alpha = 0.05 \nNOTE: If two or more means share the same grouping symbol,\n      then we cannot show them to be different.\n      But we also did not show them to be the same."
+  },
+  {
+    "objectID": "SITE/aula 5.html#por-que-considerar-um-glm",
+    "href": "SITE/aula 5.html#por-que-considerar-um-glm",
+    "title": "Apresentação",
+    "section": "Por que considerar um GLM?",
+    "text": "Por que considerar um GLM?\nA resposta count é uma contagem. Em muitos casos, contagens são mais naturalmente modeladas por distribuições discretas, como a Poisson, em vez de uma distribuição normal.\nNo modelo de Poisson, assume-se:\n\\[\nY_i \\sim \\text{Poisson}(\\mu_i)\n\\]\ncom:\n\\[\nP(Y_i = y_i) = \\frac{e^{-\\mu_i}\\mu_i^{y_i}}{y_i!}\n\\]\nAlém disso, usa-se uma função de ligação logarítmica:\n\\[\n\\log(\\mu_i) = \\eta_i = \\beta_0 + \\beta_1 x_{i1} + \\cdots + \\beta_p x_{ip}\n\\]\nNo nosso caso, os preditores representam os tratamentos."
+  },
+  {
+    "objectID": "SITE/aula 5.html#ajuste-do-modelo-de-poisson",
+    "href": "SITE/aula 5.html#ajuste-do-modelo-de-poisson",
+    "title": "Apresentação",
+    "section": "Ajuste do modelo de Poisson",
+    "text": "Ajuste do modelo de Poisson\n\nm3 &lt;- glm(count ~ spray,\n          family = poisson,\n          data = insetos)\n\nsummary(m3)\n\n\nCall:\nglm(formula = count ~ spray, family = poisson, data = insetos)\n\nCoefficients:\n            Estimate Std. Error z value Pr(&gt;|z|)    \n(Intercept)  2.67415    0.07581  35.274  &lt; 2e-16 ***\nsprayB       0.05588    0.10574   0.528    0.597    \nsprayC      -1.94018    0.21389  -9.071  &lt; 2e-16 ***\nsprayD      -1.08152    0.15065  -7.179 7.03e-13 ***\nsprayE      -1.42139    0.17192  -8.268  &lt; 2e-16 ***\nsprayF       0.13926    0.10367   1.343    0.179    \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\n(Dispersion parameter for poisson family taken to be 1)\n\n    Null deviance: 409.041  on 71  degrees of freedom\nResidual deviance:  98.329  on 66  degrees of freedom\nAIC: 376.59\n\nNumber of Fisher Scoring iterations: 5"
+  },
+  {
+    "objectID": "SITE/aula 5.html#comparações-múltiplas-no-glm",
+    "href": "SITE/aula 5.html#comparações-múltiplas-no-glm",
+    "title": "Apresentação",
+    "section": "Comparações múltiplas no GLM",
+    "text": "Comparações múltiplas no GLM\nNo contexto do modelo de Poisson, as médias estimadas na escala da resposta representam contagens esperadas.\n\ndf3 &lt;- cld(\n  emmeans(m3, ~ spray, type = \"response\"),\n  Letters = LETTERS\n)\n\ndf3\n\n spray  rate    SE  df asymp.LCL asymp.UCL .group\n C      2.08 0.417 Inf      1.41      3.08  A    \n E      3.50 0.540 Inf      2.59      4.74  AB   \n D      4.92 0.640 Inf      3.81      6.35   B   \n A     14.50 1.100 Inf     12.50     16.82    C  \n B     15.33 1.130 Inf     13.27     17.72    C  \n F     16.67 1.180 Inf     14.51     19.14    C  \n\nConfidence level used: 0.95 \nIntervals are back-transformed from the log scale \nP value adjustment: tukey method for comparing a family of 6 estimates \nTests are performed on the log scale \nsignificance level used: alpha = 0.05 \nNOTE: If two or more means share the same grouping symbol,\n      then we cannot show them to be different.\n      But we also did not show them to be the same."
+  },
+  {
+    "objectID": "SITE/aula 5.html#gráfico-das-médias-estimadas-do-glm",
+    "href": "SITE/aula 5.html#gráfico-das-médias-estimadas-do-glm",
     "title": "Apresentação",
     "section": "Gráfico das médias estimadas do GLM",
     "text": "Gráfico das médias estimadas do GLM\n\ndf3 |&gt;\n  ggplot(aes(x = reorder(spray, -rate), y = rate, label = .group)) +\n  geom_point() +\n  geom_errorbar(aes(ymin = asymp.LCL, ymax = asymp.UCL), width = 0.1) +\n  geom_text(aes(y = asymp.UCL), vjust = -0.5, size = 4) +\n  theme_classic() +\n  labs(\n    x = \"Inseticida\",\n    y = \"Insetos vivos (contagem esperada)\"\n  ) +\n  coord_flip()"
